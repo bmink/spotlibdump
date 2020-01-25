@@ -21,13 +21,19 @@ main(int argc, char **argv)
 	cJSON	*item;
 	bstr_t	*addedat;
 	cJSON	*album;
+	bstr_t	*alburi;
 	bstr_t	*albnam;
+	cJSON	*artists;
+	cJSON	*artist;
+	bstr_t	*artnam;
 
 	err = 0;
 	resp = 0;
 	json = NULL;
 	addedat = NULL;
+	alburi = NULL;
 	albnam = NULL;
+	artnam = NULL;
 
 	execn = basename(argv[0]);
 	if(xstrempty(execn)) {
@@ -98,6 +104,7 @@ main(int argc, char **argv)
 
 	for(item = items->child; item; item = item->next) {
 		addedat = binit();
+		alburi = binit();
 		albnam = binit();
 		if(!addedat) {
 			fprintf(stderr, "Couldn't allocate addedat\n");
@@ -119,6 +126,13 @@ main(int argc, char **argv)
 			goto end_label;
 		}
 
+		ret = cjson_get_childstr(album, "uri", alburi);
+		if(ret != 0) {
+			fprintf(stderr, "Album didn't contain id\n");
+			err = -1;
+			goto end_label;
+		}
+
 		ret = cjson_get_childstr(album, "name", albnam);
 		if(ret != 0) {
 			fprintf(stderr, "Album didn't contain name\n");
@@ -126,11 +140,42 @@ main(int argc, char **argv)
 			goto end_label;
 		}
 
-		printf("%s\n", bget(albnam));
-	
+		artists = cJSON_GetObjectItemCaseSensitive(album, "artists");
+		if(!artists) {
+			fprintf(stderr, "Didn't find artists\n");
+			err = -1;
+			goto end_label;
+		}
+
+		for(artist = artists->child; artist; artist = artist->next) {
+			artnam = binit();
+			if(!artnam) {
+				fprintf(stderr, "Couldn't allocate artnam\n");
+				err = -1;
+				goto end_label;
+			}
+
+			ret = cjson_get_childstr(artist, "name", artnam);
+			if(ret != 0) {
+				fprintf(stderr, "Artist didn't contain name\n");
+				err = -1;
+				goto end_label;
+			}
+
+			printf("art=%s\n", bget(artnam));
+
+			buninit(&artnam);
+		}
+
+		printf("alb=%s\n", bget(albnam));
+		printf("uri=%s\n", bget(alburi));
+		printf("added_at=%s\n", bget(addedat));
+		printf("\n");
 
 		buninit(&addedat);
+		buninit(&alburi);
 		buninit(&albnam);
+
 	}
 
 
@@ -140,7 +185,9 @@ end_label:
 	bcurl_uninit();
 	buninit(&resp);
 	buninit(&addedat);
+	buninit(&alburi);
 	buninit(&albnam);
+	buninit(&artnam);
 
 	if(json) {
 		cJSON_Delete(json);
