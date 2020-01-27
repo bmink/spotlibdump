@@ -2,11 +2,27 @@
 #include <libgen.h>
 #include "bstr.h"
 #include "bcurl.h"
+#include "bjson.h"
 #include "cJSON.h"
 #include "cJSON_helper.h"
 
 
 void usage(char *);
+
+typedef struct spoti_album {
+	bstr_t	sa_id;
+	bstr_t	sa_name;
+} spoti_album_t;
+
+
+
+bjson_def_elem_t	bjson_def_album[] = {
+	{ "id",		BJSON_STRING, 1, offsetof(spoti_album_t, sa_id) },
+	{ "name",	BJSON_STRING, 1, offsetof(spoti_album_t, sa_name) },
+	{ NULL }
+};
+
+
 
 int
 main(int argc, char **argv)

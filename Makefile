@@ -1,5 +1,5 @@
 P = spotlibdump
-OBJS = main.o cJSON.o cJSON_helper.o
+OBJS = main.o cJSON.o cJSON_helper.o json_mapper.o
 CFLAGS = -g -Wall -Wstrict-prototypes
 LDLIBS = -lb -lcurl
 
