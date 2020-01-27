@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include <libgen.h>
+#include <errno.h>
 #include "bstr.h"
 #include "bcurl.h"
-#include "bjson.h"
 #include "cJSON.h"
 #include "cJSON_helper.h"
 
@@ -10,55 +10,93 @@
 void usage(char *);
 
 typedef struct spoti_album {
-	bstr_t	sa_id;
-	bstr_t	sa_name;
-	barr_t	sa_artists;
+	bstr_t	*sa_id;
+	bstr_t	*sa_name;
+	bstr_t	*sa_uri;
+	barr_t	*sa_artists;
 } spoti_album_t;
 
 
+#define BJSON_STRING	0
+#define BJSON_INT	1
+#define BJSON_ARRAY	2
 
-bjson_def_elem_t	bjson_def_album[] = {
+#define BJSON_ARRAY_ELEM_STRING	0
+#define BJSON_ARRAY_ELEM_INT	1
+#define BJSON_ARRAY_ELEM_STRUCT	2
+
+
+typedef struct bjson_def_field {
+	char			*bf_name;
+	int			bf_type;
+	int			bf_required;
+	size_t			bf_offset;
+	int			bf_array_elem_type;
+	struct bjson_def_field	*bf_array_struct_elems; // TODO callback instead??
+} bjson_def_field_t;
+
+
+bjson_def_field_t	bjson_def_album[] = {
 	{ "id",		BJSON_STRING,	1, offsetof(spoti_album_t, sa_id) },
 	{ "name",	BJSON_STRING,	1, offsetof(spoti_album_t, sa_name) },
-	{ "artists",	BJSON_ARRAY,	1, offsetof(spoti_album_t, sa_artists) },
+	{ "uri",	BJSON_STRING,	1, offsetof(spoti_album_t, sa_uri) },
+//	{ "artists",	BJSON_ARRAY,	1, offsetof(spoti_album_t, sa_artists) },
 	{ NULL }
 };
 
 
-
-#if 0
 int
-parse_album()
+conv_fields(cJSON *json, void *target, bjson_def_field_t *fields)
 {
-	map_str(id, id, 1);	// 1 - required
-	map_str(name, name, 1);
+	bjson_def_field_t	*field;
 
-	parsearray("artists", parse_artist) {
+	if(!json || !target || !fields)
+		return EINVAL;
+
+	for(field = fields; field->bf_name; ++field) {
+		printf("Converting '%s'\n", field->bf_name);
 	}
+
+
 	return 0;
 }
-#endif
+
+
+
+int
+conv_album(cJSON *album, spoti_album_t *salb)
+{
+	int	ret;
+
+	if(!album || !salb)
+		return EINVAL;
+
+	ret = conv_fields(album, (void *)salb, bjson_def_album);
+
+	return 0;
+}
 
 
 
 int
 main(int argc, char **argv)
 {
-	int	err;
-	int	ret;
-	char	*execn;
-	bstr_t	*authhdr;
-	bstr_t	*resp;
-	cJSON	*json;
-	cJSON	*items;
-	cJSON	*item;
-	bstr_t	*addedat;
-	cJSON	*album;
-	bstr_t	*alburi;
-	bstr_t	*albnam;
-	cJSON	*artists;
-	cJSON	*artist;
-	bstr_t	*artnam;
+	int		err;
+	int		ret;
+	char		*execn;
+	bstr_t		*authhdr;
+	bstr_t		*resp;
+	cJSON		*json;
+	cJSON		*items;
+	cJSON		*item;
+	bstr_t		*addedat;
+	cJSON		*album;
+	bstr_t		*alburi;
+	bstr_t		*albnam;
+	cJSON		*artists;
+	cJSON		*artist;
+	bstr_t		*artnam;
+	spoti_album_t	salb;
 
 	err = 0;
 	resp = 0;
@@ -159,6 +197,12 @@ main(int argc, char **argv)
 			goto end_label;
 		}
 
+
+		memset(&salb, 0, sizeof(spoti_album_t));
+	
+		ret = conv_album(album, &salb);
+
+#if 0
 		ret = cjson_get_childstr(album, "uri", alburi);
 		if(ret != 0) {
 			fprintf(stderr, "Album didn't contain id\n");
@@ -204,6 +248,7 @@ main(int argc, char **argv)
 		printf("uri=%s\n", bget(alburi));
 		printf("added_at=%s\n", bget(addedat));
 		printf("\n");
+#endif
 
 		buninit(&addedat);
 		buninit(&alburi);
