@@ -20,6 +20,7 @@ typedef struct spoti_album {
 #define BJSON_STRING	0
 #define BJSON_INT	1
 #define BJSON_ARRAY	2
+#define BJSON_STRUCT	3
 
 #define BJSON_ARRAY_ELEM_STRING	0
 #define BJSON_ARRAY_ELEM_INT	1
@@ -31,8 +32,11 @@ typedef struct bjson_def_field {
 	int			bf_type;
 	int			bf_required;
 	size_t			bf_offset;
+
+				/* These are only specified for arrays. */
 	int			bf_array_elem_type;
-	struct bjson_def_field	*bf_array_struct_elems; // TODO callback instead??
+	size_t			*bf_array_struct_size;
+	struct bjson_def_field	*bf_array_struct_elems;
 } bjson_def_field_t;
 
 
@@ -49,12 +53,57 @@ int
 conv_fields(cJSON *json, void *target, bjson_def_field_t *fields)
 {
 	bjson_def_field_t	*field;
+	bstr_t			*strval;
+	int			ret;
 
 	if(!json || !target || !fields)
 		return EINVAL;
 
+	strval = NULL;
+
 	for(field = fields; field->bf_name; ++field) {
+
 		printf("Converting '%s'\n", field->bf_name);
+
+		switch(field->bf_type) {
+		case BJSON_STRING:
+
+			strval = binit();
+			if(!strval) {
+				fprintf(stderr, "Couldn't allocate strval\n");
+				return ENOMEM;
+			}
+
+			ret = cjson_get_childstr(json, field->bf_name, strval);
+			if(ret != 0 && field->bf_required) {
+				fprintf(stderr, "Didn't contain required %s\n",
+				    field->bf_name);
+				buninit(&strval);
+				return ENOENT;
+			}
+
+
+			memcpy((target + field->bf_offset), &strval,
+				sizeof(bstr_t *));
+
+			strval = NULL;
+
+			break;
+
+		default:
+			printf("Unknown type for '%s'\n", field->bf_name);
+			break;
+		}
+
+
+	
+
+		strval = binit();
+		if(!strval) {
+			fprintf(stderr, "Couldn't allocate strval");
+			return ENOMEM;
+		}
+
 	}
 
 
@@ -73,7 +122,7 @@ conv_album(cJSON *album, spoti_album_t *salb)
 
 	ret = conv_fields(album, (void *)salb, bjson_def_album);
 
-	return 0;
+	return ret;
 }
 
 
@@ -201,6 +250,16 @@ main(int argc, char **argv)
 		memset(&salb, 0, sizeof(spoti_album_t));
 	
 		ret = conv_album(album, &salb);
+		if(ret != 0) {
+			fprintf(stderr, "Could not convert album: %s\n",
+			    strerror(ret));
+			err = -1;
+			goto end_label;
+		}
+
+		printf("uri=%s\nid=%s\nname=%s\n\n", bget(salb.sa_uri),
+		    bget(salb.sa_id), bget(salb.sa_name));
+
 
 #if 0
 		ret = cjson_get_childstr(album, "uri", alburi);
