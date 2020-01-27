@@ -12,15 +12,32 @@ void usage(char *);
 typedef struct spoti_album {
 	bstr_t	sa_id;
 	bstr_t	sa_name;
+	barr_t	sa_artists;
 } spoti_album_t;
 
 
 
 bjson_def_elem_t	bjson_def_album[] = {
-	{ "id",		BJSON_STRING, 1, offsetof(spoti_album_t, sa_id) },
-	{ "name",	BJSON_STRING, 1, offsetof(spoti_album_t, sa_name) },
+	{ "id",		BJSON_STRING,	1, offsetof(spoti_album_t, sa_id) },
+	{ "name",	BJSON_STRING,	1, offsetof(spoti_album_t, sa_name) },
+	{ "artists",	BJSON_ARRAY,	1, offsetof(spoti_album_t, sa_artists) },
 	{ NULL }
 };
+
+
+
+#if 0
+int
+parse_album()
+{
+	map_str(id, id, 1);	// 1 - required
+	map_str(name, name, 1);
+
+	parsearray("artists", parse_artist) {
+	}
+	return 0;
+}
+#endif
 
 
 
