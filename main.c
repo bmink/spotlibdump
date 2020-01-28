@@ -3,6 +3,7 @@
 #include <errno.h>
 #include "bstr.h"
 #include "bcurl.h"
+#include "bjson.h"
 #include "cJSON.h"
 #include "cJSON_helper.h"
 
@@ -17,30 +18,8 @@ typedef struct spoti_album {
 } spoti_album_t;
 
 
-#define BJSON_STRING	0
-#define BJSON_INT	1
-#define BJSON_ARRAY	2
-#define BJSON_STRUCT	3
 
-#define BJSON_ARRAY_ELEM_STRING	0
-#define BJSON_ARRAY_ELEM_INT	1
-#define BJSON_ARRAY_ELEM_STRUCT	2
-
-
-typedef struct bjson_def_field {
-	char			*bf_name;
-	int			bf_type;
-	int			bf_required;
-	size_t			bf_offset;
-
-				/* These are only specified for arrays. */
-	int			bf_array_elem_type;
-	size_t			*bf_array_struct_size;
-	struct bjson_def_field	*bf_array_struct_elems;
-} bjson_def_field_t;
-
-
-bjson_def_field_t	bjson_def_album[] = {
+bjson_field_t	bjson_album_fields[] = {
 	{ "id",		BJSON_STRING,	1, offsetof(spoti_album_t, sa_id) },
 	{ "name",	BJSON_STRING,	1, offsetof(spoti_album_t, sa_name) },
 	{ "uri",	BJSON_STRING,	1, offsetof(spoti_album_t, sa_uri) },
@@ -50,9 +29,9 @@ bjson_def_field_t	bjson_def_album[] = {
 
 
 int
-conv_fields(cJSON *json, void *target, bjson_def_field_t *fields)
+conv_fields(cJSON *json, void *target, bjson_field_t *fields)
 {
-	bjson_def_field_t	*field;
+	bjson_field_t		*field;
 	bstr_t			*strval;
 	int			ret;
 
@@ -120,7 +99,7 @@ conv_album(cJSON *album, spoti_album_t *salb)
 	if(!album || !salb)
 		return EINVAL;
 
-	ret = conv_fields(album, (void *)salb, bjson_def_album);
+	ret = conv_fields(album, (void *)salb, bjson_album);
 
 	return ret;
 }
