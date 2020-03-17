@@ -22,24 +22,12 @@ main(int argc, char **argv)
 	bstr_t		*resp;
 	cJSON		*json;
 	cJSON		*items;
-	cJSON		*item;
-	bstr_t		*addedat;
-	cJSON		*album;
-	bstr_t		*alburi;
-	bstr_t		*albnam;
-	cJSON		*artists;
-	cJSON		*artist;
-	bstr_t		*artnam;
-	bstr_t		*artnam_sub;
+	bstr_t		*url;
 
 	err = 0;
 	resp = 0;
 	json = NULL;
-	addedat = NULL;
-	alburi = NULL;
-	albnam = NULL;
-	artnam = NULL;
-	artnam_sub = NULL;
+	url = NULL;
 
 	execn = basename(argv[0]);
 	if(xstrempty(execn)) {
@@ -82,34 +70,108 @@ main(int argc, char **argv)
 		err = -1;
 		goto end_label;
 	}
-
 	buninit(&authhdr);
 
-	ret = bcurl_get("https://api.spotify.com/v1/me/albums", &resp);
-	if(ret != 0) {
-		fprintf(stderr, "Couldn't get albums list\n");
+	url = binit();
+	if(!url) {
+		fprintf(stderr, "Couldn't allocate url\n");
 		err = -1;
 		goto end_label;
 	}
+	bprintf(url, "https://api.spotify.com/v1/me/albums");
 
-	printf("%s\n", bget(resp));
+	while(1) {
 
-	json = cJSON_Parse(bget(resp));
-	if(json == NULL) {
-		fprintf(stderr, "Couldn't parse JSON\n");
-		err = -1;
-		goto end_label;
+		ret = bcurl_get(bget(url), &resp);
+		if(ret != 0) {
+			fprintf(stderr, "Couldn't get albums list\n");
+			err = -1;
+			goto end_label;
+		}
+
+#if 0
+		printf("%s\n", bget(resp));
+#endif
+
+		json = cJSON_Parse(bget(resp));
+		if(json == NULL) {
+			fprintf(stderr, "Couldn't parse JSON\n");
+			err = -1;
+			goto end_label;
+		}
+
+		items = cJSON_GetObjectItemCaseSensitive(json, "items");
+		if(!items) {
+			fprintf(stderr, "Didn't find items\n");
+			err = -1;
+			goto end_label;
+		}
+
+		ret = process_items(items);
+		if(ret != 0) {
+			fprintf(stderr, "Couldn't process items\n");
+			err = -1;
+			goto end_label;
+		}
+
+		bclear(url);
+		ret = cjson_get_childstr(json, "next", url);
+		if(ret != 0)
+			break;
+#if 0
+		printf("next url: %s\n", bget(url));
+#endif
 	}
 
-	items = cJSON_GetObjectItemCaseSensitive(json, "items");
-	if(!items) {
-		fprintf(stderr, "Didn't find items\n");
-		err = -1;
-		goto end_label;
+end_label:
+	
+	bcurl_uninit();
+	buninit(&resp);
+	buninit(&url);
+
+	if(json) {
+		cJSON_Delete(json);
+		json = NULL;	
 	}
 
-here
-	ret = process_items(items);
+	return err;
+}
+
+
+void
+usage(char *execn)
+{
+	if(xstrempty(execn))
+		return;
+
+	printf("Usage: %s <Spotify User ID> <token>\n", execn);
+}
+
+
+int
+process_items(cJSON *items)
+{
+	cJSON		*item;
+	bstr_t		*addedat;
+	cJSON		*album;
+	bstr_t		*alburi;
+	bstr_t		*albnam;
+	cJSON		*artists;
+	cJSON		*artist;
+	bstr_t		*artnam;
+	bstr_t		*artnam_sub;
+	int		err;
+	int		ret;
+
+	err = 0;
+	addedat = NULL;
+	alburi = NULL;
+	albnam = NULL;
+	artnam = NULL;
+	artnam_sub = NULL;
+
+	if(items == NULL)
+		return EINVAL;
 
 	for(item = items->child; item; item = item->next) {
 		addedat = binit();
@@ -206,35 +268,11 @@ here
 
 end_label:
 	
-	bcurl_uninit();
-	buninit(&resp);
 	buninit(&addedat);
 	buninit(&alburi);
 	buninit(&albnam);
 	buninit(&artnam);
 	buninit(&artnam_sub);
 
-	if(json) {
-		cJSON_Delete(json);
-		json = NULL;	
-	}
-
 	return err;
-}
-
-
-void
-usage(char *execn)
-{
-	if(xstrempty(execn))
-		return;
-
-	printf("Usage: %s <Spotify User ID> <token>\n", execn);
-}
-
-
-int
-process_items(cJSON *items)
-{
-	return 0;
 }
