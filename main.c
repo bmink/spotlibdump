@@ -9,35 +9,6 @@
 
 void usage(char *);
 
-typedef struct spoti_album {
-	bstr_t	sa_id;
-	bstr_t	sa_name;
-	barr_t	sa_artists;
-} spoti_album_t;
-
-
-
-bjson_def_elem_t	bjson_def_album[] = {
-	{ "id",		BJSON_STRING,	1, offsetof(spoti_album_t, sa_id) },
-	{ "name",	BJSON_STRING,	1, offsetof(spoti_album_t, sa_name) },
-	{ "artists",	BJSON_ARRAY,	1, offsetof(spoti_album_t, sa_artists) },
-	{ NULL }
-};
-
-
-
-#if 0
-int
-parse_album()
-{
-	map_str(id, id, 1);	// 1 - required
-	map_str(name, name, 1);
-
-	parsearray("artists", parse_artist) {
-	}
-	return 0;
-}
-#endif
 
 
 
@@ -59,6 +30,7 @@ main(int argc, char **argv)
 	cJSON	*artists;
 	cJSON	*artist;
 	bstr_t	*artnam;
+	bstr_t	*artnam_sub;
 
 	err = 0;
 	resp = 0;
@@ -67,6 +39,7 @@ main(int argc, char **argv)
 	alburi = NULL;
 	albnam = NULL;
 	artnam = NULL;
+	artnam_sub = NULL;
 
 	execn = basename(argv[0]);
 	if(xstrempty(execn)) {
@@ -135,6 +108,8 @@ main(int argc, char **argv)
 		goto end_label;
 	}
 
+	ret = process_items(items);
+
 	for(item = items->child; item; item = item->next) {
 		addedat = binit();
 		alburi = binit();
@@ -180,38 +155,53 @@ main(int argc, char **argv)
 			goto end_label;
 		}
 
+		artnam = binit();
+		if(!artnam) {
+			fprintf(stderr, "Couldn't allocate artnam\n");
+			err = -1;
+			goto end_label;
+		}
+
 		for(artist = artists->child; artist; artist = artist->next) {
-			artnam = binit();
-			if(!artnam) {
-				fprintf(stderr, "Couldn't allocate artnam\n");
+
+			artnam_sub = binit();
+			if(!artnam_sub) {
+				fprintf(stderr, "Couldn't allocate"
+				    " artnam_sub\n");
 				err = -1;
 				goto end_label;
 			}
-
-			ret = cjson_get_childstr(artist, "name", artnam);
+			
+			ret = cjson_get_childstr(artist, "name", artnam_sub);
 			if(ret != 0) {
 				fprintf(stderr, "Artist didn't contain name\n");
 				err = -1;
 				goto end_label;
 			}
 
-			printf("art=%s\n", bget(artnam));
+			if(!bstrempty(artnam))
+				bstrcat(artnam, ", ");
 
-			buninit(&artnam);
+			bstrcat(artnam, bget(artnam_sub));
+
+			buninit(&artnam_sub);
 		}
 
+#if 0
+		printf("art=%s\n", bget(artnam));
 		printf("alb=%s\n", bget(albnam));
 		printf("uri=%s\n", bget(alburi));
 		printf("added_at=%s\n", bget(addedat));
 		printf("\n");
+#endif
+		printf("%s - %s | %s\n", bget(artnam), bget(albnam),
+		    bget(alburi));
 
+		buninit(&artnam);
 		buninit(&addedat);
 		buninit(&alburi);
 		buninit(&albnam);
-
 	}
-
-
 
 end_label:
 	
@@ -221,6 +211,7 @@ end_label:
 	buninit(&alburi);
 	buninit(&albnam);
 	buninit(&artnam);
+	buninit(&artnam_sub);
 
 	if(json) {
 		cJSON_Delete(json);
