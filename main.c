@@ -3,11 +3,17 @@
 #include <errno.h>
 #include "bstr.h"
 #include "bcurl.h"
+#include "bfs.h"
 #include "cJSON.h"
 #include "cJSON_helper.h"
 
+bstr_t	*datadir;
+
 
 void usage(char *);
+
+
+int dump_albums(void);
 
 int process_items(cJSON *);
 
@@ -19,15 +25,9 @@ main(int argc, char **argv)
 	int		ret;
 	char		*execn;
 	bstr_t		*authhdr;
-	bstr_t		*resp;
-	cJSON		*json;
-	cJSON		*items;
-	bstr_t		*url;
 
 	err = 0;
-	resp = 0;
-	json = NULL;
-	url = NULL;
+	datadir = NULL;
 
 	execn = basename(argv[0]);
 	if(xstrempty(execn)) {
@@ -40,6 +40,30 @@ main(int argc, char **argv)
 		usage(execn);
 		err = -1;
 		goto end_label;
+	}
+
+	datadir = binit();
+	if(datadir == NULL) {
+		fprintf(stderr, "Can't allocate datadir.\n");
+		err = -1;
+		goto end_label;
+	}
+
+	bstrcat(datadir, getenv("HOME"));
+	if(bstrempty(datadir)) {
+		fprintf(stderr, "Could not obtain home directory.\n");
+		err = -1;
+		goto end_label;
+	}
+	bprintf(datadir, "/.%s", execn);
+	if(!bfs_isdir(bget(datadir))) {
+		ret = bfs_mkdir(bget(datadir));
+		if(ret != 0) {
+			fprintf(stderr, "Could not create data directory: %s\n",
+			   strerror(ret));
+			err = -1;
+			goto end_label;
+		}
 	}
 
 	ret = bcurl_init();
@@ -71,6 +95,49 @@ main(int argc, char **argv)
 		goto end_label;
 	}
 	buninit(&authhdr);
+
+	ret = dump_albums();
+	if(ret != 0) {
+		fprintf(stderr, "Couldn't dump albums.\n");
+		err = -1;
+		goto end_label;
+	}
+
+
+end_label:
+	
+	bcurl_uninit();
+	buninit(&datadir);
+
+	return err;
+}
+
+
+void
+usage(char *execn)
+{
+	if(xstrempty(execn))
+		return;
+
+	printf("Usage: %s <Spotify User ID> <token>\n", execn);
+}
+
+
+int
+dump_albums(void)
+{
+	bstr_t		*resp;
+	cJSON		*json;
+	cJSON		*items;
+	bstr_t		*url;
+	int		err;
+	int		ret;
+
+	err = 0;
+	resp = 0;
+	json = NULL;
+	url = NULL;
+
 
 	url = binit();
 	if(!url) {
@@ -116,6 +183,10 @@ main(int argc, char **argv)
 
 		bclear(url);
 		ret = cjson_get_childstr(json, "next", url);
+
+		cJSON_Delete(json);
+		json = NULL;
+
 		if(ret != 0)
 			break;
 #if 0
@@ -123,9 +194,9 @@ main(int argc, char **argv)
 #endif
 	}
 
+
 end_label:
-	
-	bcurl_uninit();
+
 	buninit(&resp);
 	buninit(&url);
 
@@ -135,16 +206,6 @@ end_label:
 	}
 
 	return err;
-}
-
-
-void
-usage(char *execn)
-{
-	if(xstrempty(execn))
-		return;
-
-	printf("Usage: %s <Spotify User ID> <token>\n", execn);
 }
 
 
