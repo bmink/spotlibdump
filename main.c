@@ -1,36 +1,36 @@
 #include <stdio.h>
 #include <libgen.h>
+#include <errno.h>
 #include "bstr.h"
 #include "bcurl.h"
-#include "bjson.h"
 #include "cJSON.h"
 #include "cJSON_helper.h"
 
 
 void usage(char *);
 
-
+int process_items(cJSON *);
 
 
 int
 main(int argc, char **argv)
 {
-	int	err;
-	int	ret;
-	char	*execn;
-	bstr_t	*authhdr;
-	bstr_t	*resp;
-	cJSON	*json;
-	cJSON	*items;
-	cJSON	*item;
-	bstr_t	*addedat;
-	cJSON	*album;
-	bstr_t	*alburi;
-	bstr_t	*albnam;
-	cJSON	*artists;
-	cJSON	*artist;
-	bstr_t	*artnam;
-	bstr_t	*artnam_sub;
+	int		err;
+	int		ret;
+	char		*execn;
+	bstr_t		*authhdr;
+	bstr_t		*resp;
+	cJSON		*json;
+	cJSON		*items;
+	cJSON		*item;
+	bstr_t		*addedat;
+	cJSON		*album;
+	bstr_t		*alburi;
+	bstr_t		*albnam;
+	cJSON		*artists;
+	cJSON		*artist;
+	bstr_t		*artnam;
+	bstr_t		*artnam_sub;
 
 	err = 0;
 	resp = 0;
@@ -108,6 +108,7 @@ main(int argc, char **argv)
 		goto end_label;
 	}
 
+here
 	ret = process_items(items);
 
 	for(item = items->child; item; item = item->next) {
@@ -229,4 +230,11 @@ usage(char *execn)
 		return;
 
 	printf("Usage: %s <Spotify User ID> <token>\n", execn);
+}
+
+
+int
+process_items(cJSON *items)
+{
+	return 0;
 }
