@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <libgen.h>
 #include <errno.h>
+#include <unistd.h>
 #include "bstr.h"
 #include "bcurl.h"
 #include "bfs.h"
@@ -15,7 +16,7 @@ void usage(char *);
 
 int dump_albums(void);
 
-int process_items(cJSON *);
+int process_items(cJSON *, bstr_t *);
 
 
 int
@@ -123,6 +124,8 @@ usage(char *execn)
 }
 
 
+#define FILEN_ALBUMS	"spotlib_saved_albums.txt"
+
 int
 dump_albums(void)
 {
@@ -132,27 +135,55 @@ dump_albums(void)
 	bstr_t		*url;
 	int		err;
 	int		ret;
+	bstr_t		*out;
+	bstr_t		*filen;
+	bstr_t		*filen_tmp;
 
 	err = 0;
 	resp = 0;
 	json = NULL;
 	url = NULL;
-
+	out = NULL;
+	filen = NULL;
+	filen_tmp = NULL;
 
 	url = binit();
 	if(!url) {
 		fprintf(stderr, "Couldn't allocate url\n");
-		err = -1;
+		err = ENOMEM;
 		goto end_label;
 	}
 	bprintf(url, "https://api.spotify.com/v1/me/albums");
+
+	out = binit();
+	if(!out) {
+		fprintf(stderr, "Couldn't allocate out\n");
+		err = ENOMEM;
+		goto end_label;
+	}
+
+	filen = binit();
+	if(!filen) {
+		fprintf(stderr, "Couldn't allocate filen\n");
+		err = ENOMEM;
+		goto end_label;
+	}
+	bprintf(filen, "%s/%s", bget(datadir), FILEN_ALBUMS);
+
+	filen_tmp = binit();
+	if(!filen_tmp) {
+		fprintf(stderr, "Couldn't allocate filen_tmp\n");
+		err = ENOMEM;
+		goto end_label;
+	}
+	bprintf(filen_tmp, "%s.%d", bget(filen), getpid());
 
 	while(1) {
 
 		ret = bcurl_get(bget(url), &resp);
 		if(ret != 0) {
 			fprintf(stderr, "Couldn't get albums list\n");
-			err = -1;
+			err = ret;
 			goto end_label;
 		}
 
@@ -163,21 +194,21 @@ dump_albums(void)
 		json = cJSON_Parse(bget(resp));
 		if(json == NULL) {
 			fprintf(stderr, "Couldn't parse JSON\n");
-			err = -1;
+			err = ENOEXEC;
 			goto end_label;
 		}
 
 		items = cJSON_GetObjectItemCaseSensitive(json, "items");
 		if(!items) {
 			fprintf(stderr, "Didn't find items\n");
-			err = -1;
+			err = ENOENT;
 			goto end_label;
 		}
 
-		ret = process_items(items);
+		ret = process_items(items, out);
 		if(ret != 0) {
 			fprintf(stderr, "Couldn't process items\n");
-			err = -1;
+			err = ret;
 			goto end_label;
 		}
 
@@ -194,11 +225,34 @@ dump_albums(void)
 #endif
 	}
 
+	ret = btofile(bget(filen_tmp), out);
+	if(ret != 0) {
+		fprintf(stderr, "Couldn't write file: %s\n", bget(filen_tmp));
+		err = ret;
+		goto end_label;
+	}
+
+	ret = rename(bget(filen_tmp), bget(filen));
+	if(ret != 0) {
+		fprintf(stderr, "Couldn't rename file to: %s\n", bget(filen));
+		err = ret;
+		goto end_label;
+	}
+
+
 
 end_label:
 
 	buninit(&resp);
 	buninit(&url);
+	buninit(&out);
+	buninit(&filen);
+
+	if(!bstrempty(filen_tmp)) {
+		unlink(bget(filen_tmp));
+	}
+
+	buninit(&filen_tmp);
 
 	if(json) {
 		cJSON_Delete(json);
@@ -210,7 +264,7 @@ end_label:
 
 
 int
-process_items(cJSON *items)
+process_items(cJSON *items, bstr_t *out)
 {
 	cJSON		*item;
 	bstr_t		*addedat;
@@ -235,54 +289,67 @@ process_items(cJSON *items)
 		return EINVAL;
 
 	for(item = items->child; item; item = item->next) {
+
 		addedat = binit();
-		alburi = binit();
-		albnam = binit();
 		if(!addedat) {
 			fprintf(stderr, "Couldn't allocate addedat\n");
-			err = -1;
+			err = ENOMEM;
+			goto end_label;
+		}
+
+		alburi = binit();
+		if(!alburi) {
+			fprintf(stderr, "Couldn't allocate alburi\n");
+			err = ENOMEM;
+			goto end_label;
+		}
+
+		albnam = binit();
+		if(!albnam) {
+			fprintf(stderr, "Couldn't allocate albnam\n");
+			err = ENOMEM;
 			goto end_label;
 		}
 
 		ret = cjson_get_childstr(item, "added_at", addedat);
 		if(ret != 0) {
 			fprintf(stderr, "Item didn't contain added_at\n");
-			err = -1;
+			err = ENOENT;
 			goto end_label;
 		}
 			
 		album = cJSON_GetObjectItemCaseSensitive(item, "album");
 		if(!album) {
 			fprintf(stderr, "Item didn't contain album\n");
-			err = -1;
+			err = ENOMEM;
 			goto end_label;
 		}
 
 		ret = cjson_get_childstr(album, "uri", alburi);
 		if(ret != 0) {
 			fprintf(stderr, "Album didn't contain id\n");
-			err = -1;
+			err = ENOENT;
 			goto end_label;
 		}
 
 		ret = cjson_get_childstr(album, "name", albnam);
 		if(ret != 0) {
 			fprintf(stderr, "Album didn't contain name\n");
-			err = -1;
+			err = ENOENT;
 			goto end_label;
 		}
 
 		artists = cJSON_GetObjectItemCaseSensitive(album, "artists");
 		if(!artists) {
 			fprintf(stderr, "Didn't find artists\n");
-			err = -1;
+			err = ENOENT;
 			goto end_label;
 		}
 
 		artnam = binit();
 		if(!artnam) {
 			fprintf(stderr, "Couldn't allocate artnam\n");
-			err = -1;
+			err = ENOMEM;
 			goto end_label;
 		}
 
@@ -292,14 +359,14 @@ process_items(cJSON *items)
 			if(!artnam_sub) {
 				fprintf(stderr, "Couldn't allocate"
 				    " artnam_sub\n");
-				err = -1;
+				err = ENOMEM;
 				goto end_label;
 			}
 			
 			ret = cjson_get_childstr(artist, "name", artnam_sub);
 			if(ret != 0) {
 				fprintf(stderr, "Artist didn't contain name\n");
-				err = -1;
+				err = ENOENT;
 				goto end_label;
 			}
 
@@ -318,7 +385,7 @@ process_items(cJSON *items)
 		printf("added_at=%s\n", bget(addedat));
 		printf("\n");
 #endif
-		printf("%s - %s | %s\n", bget(artnam), bget(albnam),
+		bprintf(out, "%s - %s | %s\n", bget(artnam), bget(albnam),
 		    bget(alburi));
 
 		buninit(&artnam);
