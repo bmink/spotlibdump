@@ -42,7 +42,9 @@ response=$(curl -s https://accounts.spotify.com/api/token \
   -d "grant_type=authorization_code&code=$code&redirect_uri=http%3A%2F%2Flocalhost%3A$port%2F")
 
 # Useful values are
-# jq -r '.expires_in'
+#jq -r '.expires_in'
+
+echo $response | jq -r '.expires_in'
 # may not exist
 # jq -r '.scope'
 
@@ -50,4 +52,6 @@ response=$(curl -s https://accounts.spotify.com/api/token \
 # echo $response | jq -r '.refresh_token' > /var/tmp/spotify_refresh_token
 # TODO cache access token
 echo $response | jq -r '.access_token'
+echo "---"
+echo $response | jq -r '.refresh_token'
 
