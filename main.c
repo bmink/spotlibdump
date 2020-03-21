@@ -14,9 +14,10 @@ bstr_t	*datadir;
 void usage(char *);
 
 
-int dump_albums(void);
+#define ALBMODE_SAVED_ALBUMS	0
+#define ALBMODE_LIKED_TRACKS	1
 
-int process_items(cJSON *, bstr_t *);
+int dump_albums(int);
 
 
 int
@@ -97,12 +98,26 @@ main(int argc, char **argv)
 	}
 	buninit(&authhdr);
 
-	ret = dump_albums();
+	printf("Getting saved albums...\n");
+	fflush(stdout);
+	ret = dump_albums(ALBMODE_SAVED_ALBUMS);
 	if(ret != 0) {
-		fprintf(stderr, "Couldn't dump albums.\n");
+		fprintf(stderr, "Could not get albums.\n");
 		err = -1;
 		goto end_label;
 	}
+	printf("Done.\n");
+
+	printf("Getting albums from liked tracks...\n");
+	fflush(stdout);
+	ret = dump_albums(ALBMODE_LIKED_TRACKS);
+	if(ret != 0) {
+		fprintf(stderr, "Could not get albums from saved tracks.\n");
+		err = -1;
+		goto end_label;
+	}
+	printf("Done.\n");
+
 
 
 end_label:
@@ -124,10 +139,16 @@ usage(char *execn)
 }
 
 
+#define URL_ALBUMS	"https://api.spotify.com/v1/me/albums"
+#define URL_TRACKS	"https://api.spotify.com/v1/me/tracks"
 #define FILEN_ALBUMS	"spotlib_saved_albums.txt"
+#define FILEN_LT_ALBUMS	"spotlib_liked_track_albums.txt"
+
+int process_items(int, cJSON *, bstr_t *);
+
 
 int
-dump_albums(void)
+dump_albums(int mode)
 {
 	bstr_t		*resp;
 	cJSON		*json;
@@ -147,13 +168,21 @@ dump_albums(void)
 	filen = NULL;
 	filen_tmp = NULL;
 
+	if(mode != ALBMODE_SAVED_ALBUMS && mode != ALBMODE_LIKED_TRACKS)
+		return EINVAL;
+
 	url = binit();
 	if(!url) {
 		fprintf(stderr, "Couldn't allocate url\n");
 		err = ENOMEM;
 		goto end_label;
 	}
-	bprintf(url, "https://api.spotify.com/v1/me/albums");
+
+	if(mode == ALBMODE_SAVED_ALBUMS)
+		bprintf(url, URL_ALBUMS);
+	else
+	if(mode == ALBMODE_LIKED_TRACKS)
+		bprintf(url, URL_TRACKS);
 
 	out = binit();
 	if(!out) {
@@ -168,7 +197,11 @@ dump_albums(void)
 		err = ENOMEM;
 		goto end_label;
 	}
-	bprintf(filen, "%s/%s", bget(datadir), FILEN_ALBUMS);
+	if(mode == ALBMODE_SAVED_ALBUMS)
+		bprintf(filen, "%s/%s", bget(datadir), FILEN_ALBUMS);
+	else
+	if(mode == ALBMODE_LIKED_TRACKS)
+		bprintf(filen, "%s/%s", bget(datadir), FILEN_LT_ALBUMS);
 
 	filen_tmp = binit();
 	if(!filen_tmp) {
@@ -205,7 +238,7 @@ dump_albums(void)
 			goto end_label;
 		}
 
-		ret = process_items(items, out);
+		ret = process_items(mode, items, out);
 		if(ret != 0) {
 			fprintf(stderr, "Couldn't process items\n");
 			err = ret;
@@ -239,8 +272,6 @@ dump_albums(void)
 		goto end_label;
 	}
 
-
-
 end_label:
 
 	buninit(&resp);
@@ -264,11 +295,12 @@ end_label:
 
 
 int
-process_items(cJSON *items, bstr_t *out)
+process_items(int mode, cJSON *items, bstr_t *out)
 {
 	cJSON		*item;
 	bstr_t		*addedat;
 	cJSON		*album;
+	cJSON		*track;
 	bstr_t		*alburi;
 	bstr_t		*albnam;
 	cJSON		*artists;
@@ -286,6 +318,9 @@ process_items(cJSON *items, bstr_t *out)
 	artnam_sub = NULL;
 
 	if(items == NULL)
+		return EINVAL;
+
+	if(mode != ALBMODE_SAVED_ALBUMS && mode != ALBMODE_LIKED_TRACKS)
 		return EINVAL;
 
 	for(item = items->child; item; item = item->next) {
@@ -317,13 +352,31 @@ process_items(cJSON *items, bstr_t *out)
 			err = ENOENT;
 			goto end_label;
 		}
-			
-		album = cJSON_GetObjectItemCaseSensitive(item, "album");
-		if(!album) {
-			fprintf(stderr, "Item didn't contain album\n");
-			err = ENOMEM;
-			goto end_label;
-		}
+
+		if(mode == ALBMODE_SAVED_ALBUMS) {
+			album = cJSON_GetObjectItemCaseSensitive(item, "album");
+			if(!album) {
+				fprintf(stderr, "Item didn't contain album\n");
+				err = ENOMEM;
+				goto end_label;
+			}
+	 	} else if(mode == ALBMODE_LIKED_TRACKS) {
+
+			track = cJSON_GetObjectItemCaseSensitive(item, "track");
+			if(!track) {
+				fprintf(stderr, "Item didn't contain track\n");
+				err = ENOMEM;
+				goto end_label;
+			}
+
+			album = cJSON_GetObjectItemCaseSensitive(track,
+			    "album");
+			if(!album) {
+				fprintf(stderr, "Track didn't contain album\n");
+				err = ENOMEM;
+				goto end_label;
+			}
+		} 
 
 		ret = cjson_get_childstr(album, "uri", alburi);
 		if(ret != 0) {
@@ -404,3 +457,6 @@ end_label:
 
 	return err;
 }
+
+
+
