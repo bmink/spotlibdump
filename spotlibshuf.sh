@@ -1,17 +1,27 @@
 #!/bin/bash
 
-ALBFILE=~/.spotlibdump/spotlib_saved_albums.txt
 
-if [ ! -f "$ALBFILE" ]; then
-	echo "Album file not found."
+if [ "$1" = "sa" ]; then
+	LIBFILE=~/.spotlibdump/spotlib_saved_albums.txt
+elif [ "$1" = "lt" ]; then
+	LIBFILE=~/.spotlibdump/spotlib_liked_track_albums.txt
+else
+	echo "No valid argument specified."
+	exit -1
+fi
+
+
+
+if [ ! -f "$LIBFILE" ]; then
+	echo "Library file not found."
 	exit -1
 fi
 
 echo
 echo "-- Recent --"
-cat "$ALBFILE" | head -n 20 | sort -R | head -n 5
+cat "$LIBFILE" | head -n 20 | sort -R | head -n 5
 echo
 echo "--- All ----"
-cat "$ALBFILE" | sort -R | head -n 5
+cat "$LIBFILE" | sort -R | head -n 5
 echo
 
