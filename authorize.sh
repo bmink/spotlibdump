@@ -38,9 +38,6 @@ open "$AUTH_URL"
 # Serve up a response once the redirect happens.
 RESPONSE=$(echo -e "HTTP/1.1 200 OK\nAccess-Control-Allow-Origin:*\nCache-Control: no-cache, no-store, must-revalidate\nContent-Length:77\n\n<html><body>Authorization successful, please close this page.</body></html>\n" | nc -l -c $PORT)
 
-echo "$RESPONSE"
-exit 0
-
 CODE=$(echo "$RESPONSE" | grep "code=" | sed -e 's/^.*code=//' | sed -e 's/ .*$//')
 
 RESPONSE=$(curl -s https://accounts.spotify.com/api/token \
