@@ -3,3 +3,5 @@ spotlibdump
 *.swp
 out
 out.*
+do_authorize.sh
+

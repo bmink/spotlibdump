@@ -1,57 +1,60 @@
 #!/bin/bash
 
-# spotify_platform_oauth.sh
+# Based on:
+# https://gist.github.com/hughrawlinson/1d24595d3648d53440552436dc215d90#
 #
-# A script to quickly and easily generate Spotify oauth tokens given a client
-# id, secret, and scope. Will authenticate a user via the browser.
+# Usage: authorize.sh <client_id> <client_secret>
+#
+# Generates an access and a refresh token. The access token will be good for
+# an hour only, so we don't really care about it. The important thing is the
+# refresh token. It should be put into a file named .refreshtoken. The program
+# will read it and acquire a new access token before doing anything else.
+#
+#
+# On your Spotify dev dashboard, your app must have "http://localhost:8082/'
+# as its redirect_uri.
 
-# The app must have "http://localhost:8082/' as a redirect_uri
+if [[ -z "$1" || -z "$2" ]]; then
+	echo "Invalid arguments"
+	exit -1
+fi	
 
-# spotify_client_creds.json should contain a spotify client id and secret pair
-# encoded as a json object with properties `id` and `secret`
+CLIENT_ID=$1
+CLIENT_SECRET=$2
+PORT=8082
+REDIRECT_URI="http%3A%2F%2Flocalhost%3A$PORT%2F"
+SCOPES="playlist-read-private user-library-read"
+AUTH_URL="https://accounts.spotify.com/authorize/?response_type=code&client_id=$CLIENT_ID&redirect_uri=$REDIRECT_URI"
 
-# TODO grab client id and secret first from args, if not, then this file, if not, exit with an error
-client_id=41eb80338f0e4d7bab947a7eb4f6831f
-client_secret=a44d573c27a04c2594fdb26cd99a134e
-port=8082
-redirect_uri=http%3A%2F%2Flocalhost%3A$port%2F
-auth_endpoint=https://accounts.spotify.com/authorize/?response_type=code\&client_id=$client_id\&redirect_uri=$redirect_uri
-# TODO return cached access token if scopes match and it hasn't expired
-# TODO get scopes from args
-scopes="playlist-read-private user-library-read"
-if [[ ! -z $scopes ]]
-then
-  encoded_scopes=$(echo $scopes| tr ' ' '%' | sed s/%/%20/g)
-  # If scopes exists, then append them to auth_endpoint
-  auth_endpoint=$auth_endpoint\&scope=$encoded_scopes
+if [[ ! -z $SCOPES ]]; then
+	ENCODED_SCOPES=$(echo $SCOPES| tr ' ' '%' | sed s/%/%20/g)
+	AUTH_URL="$AUTH_URL&scope=$ENCODED_SCOPES"
 fi
 
-# TODO if refresh_token exists and is valid for scopes, use refresh flow
-open $auth_endpoint
-# User is now authenticating on accounts.spotify.com...
+# Start user authentication
+open "$AUTH_URL"
 
-# Now the user gets redirected to our endpoint
-# Grab token and close browser window
-response=$(echo "HTTP/1.1 200 OK\nAccess-Control-Allow-Origin:*\nContent-Length:65\n\n<html><script>open(location, '_self').close();</script></html>\n" | nc -l -c $port)
-code=$(echo "$response" | grep GET | cut -d' ' -f 2 | cut -d'=' -f 2)
 
-# I am sorry about this sed. OS X base64 is different to python base64 I guess
-response=$(curl -s https://accounts.spotify.com/api/token \
+# Serve up a response once the redirect happens.
+RESPONSE=$(echo -e "HTTP/1.1 200 OK\nAccess-Control-Allow-Origin:*\nCache-Control: no-cache, no-store, must-revalidate\nContent-Length:77\n\n<html><body>Authorization successful, please close this page.</body></html>\n" | nc -l -c $PORT)
+
+echo "$RESPONSE"
+exit 0
+
+CODE=$(echo "$RESPONSE" | grep "code=" | sed -e 's/^.*code=//' | sed -e 's/ .*$//')
+
+RESPONSE=$(curl -s https://accounts.spotify.com/api/token \
   -H "Content-Type:application/x-www-form-urlencoded" \
-  -H "Authorization: Basic $(echo $client_id:$client_secret | base64 | sed 's/K$/=/')" \
-  -d "grant_type=authorization_code&code=$code&redirect_uri=http%3A%2F%2Flocalhost%3A$port%2F")
+  -H "Authorization: Basic $(echo -n "$CLIENT_ID:$CLIENT_SECRET" | base64)" \
+  -d "grant_type=authorization_code&code=$CODE&redirect_uri=http%3A%2F%2Flocalhost%3A$PORT%2F")
 
-# Useful values are
-#jq -r '.expires_in'
+echo "Expires:"
+echo $RESPONSE | jq -r '.expires_in'
 
-echo $response | jq -r '.expires_in'
-# may not exist
-# jq -r '.scope'
-
-# I'm not actually using this yet, best not store it
-# echo $response | jq -r '.refresh_token' > /var/tmp/spotify_refresh_token
-# TODO cache access token
-echo $response | jq -r '.access_token'
-echo "---"
-echo $response | jq -r '.refresh_token'
+echo
+echo "Access token:"
+echo $RESPONSE | jq -r '.access_token'
+echo
+echo "Refresh token:"
+echo $RESPONSE | jq -r '.refresh_token'
 
