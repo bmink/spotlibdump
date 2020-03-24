@@ -9,10 +9,7 @@
 #include "cJSON_helper.h"
 
 bstr_t	*datadir;
-
-
 void usage(char *);
-
 
 #define ALBMODE_SAVED_ALBUMS	0
 #define ALBMODE_LIKED_TRACKS	1

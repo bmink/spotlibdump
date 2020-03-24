@@ -4,4 +4,4 @@ spotlibdump
 out
 out.*
 do_authorize.sh
-
+.refresh_token

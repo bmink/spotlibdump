@@ -38,6 +38,8 @@ open "$AUTH_URL"
 # Serve up a response once the redirect happens.
 RESPONSE=$(echo -e "HTTP/1.1 200 OK\nAccess-Control-Allow-Origin:*\nCache-Control: no-cache, no-store, must-revalidate\nContent-Length:77\n\n<html><body>Authorization successful, please close this page.</body></html>\n" | nc -l -c $PORT)
 
+echo $RESPONSE
+
 CODE=$(echo "$RESPONSE" | grep "code=" | sed -e 's/^.*code=//' | sed -e 's/ .*$//')
 
 RESPONSE=$(curl -s https://accounts.spotify.com/api/token \
@@ -45,13 +47,23 @@ RESPONSE=$(curl -s https://accounts.spotify.com/api/token \
   -H "Authorization: Basic $(echo -n "$CLIENT_ID:$CLIENT_SECRET" | base64)" \
   -d "grant_type=authorization_code&code=$CODE&redirect_uri=http%3A%2F%2Flocalhost%3A$PORT%2F")
 
-echo "Expires:"
-echo $RESPONSE | jq -r '.expires_in'
+echo $RESPONSE
+#echo "Expires:"
+#echo $RESPONSE | jq -r '.expires_in'
+#
+#echo
+#echo "Access token:"
+#echo $RESPONSE | jq -r '.access_token'
+#echo
+#echo "Refresh token:"
+#echo $RESPONSE | jq -r '.refresh_token'
 
-echo
-echo "Access token:"
-echo $RESPONSE | jq -r '.access_token'
-echo
-echo "Refresh token:"
-echo $RESPONSE | jq -r '.refresh_token'
+echo "{" > .credentials.json
+echo "   \"client_id\" : \"$CLIENT_ID\"" >> .credentials.json
+echo -n "   \"refresh_token\": \"" >> .credentials.json
+echo $RESPONSE | jq -rj '.refresh_token'  >> .credentials.json
+echo "\"" >> .credentials.json
+echo "}" >> .credentials.json
+
+chmod 600 .credentials.json
 
