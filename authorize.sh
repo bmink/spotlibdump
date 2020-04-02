@@ -5,11 +5,10 @@
 #
 # Usage: authorize.sh <client_id> <client_secret>
 #
-# Generates an access and a refresh token. The access token will be good for
-# an hour only, so we don't really care about it. The important thing is the
-# refresh token. It should be put into a file named .refreshtoken. The program
-# will read it and acquire a new access token before doing anything else.
-#
+# Generates an access and a refresh token. Credentials will be put in
+# .credentials, while the access token will be put in .accesstoken.
+# check_accesstoken.sh should be run periodically to refresh the
+# access token.
 #
 # On your Spotify dev dashboard, your app must have "http://localhost:8082/'
 # as its redirect_uri.
@@ -38,7 +37,7 @@ open "$AUTH_URL"
 # Serve up a response once the redirect happens.
 RESPONSE=$(echo -e "HTTP/1.1 200 OK\nAccess-Control-Allow-Origin:*\nCache-Control: no-cache, no-store, must-revalidate\nContent-Length:77\n\n<html><body>Authorization successful, please close this page.</body></html>\n" | nc -l -c $PORT)
 
-echo $RESPONSE
+#echo $RESPONSE
 
 CODE=$(echo "$RESPONSE" | grep "code=" | sed -e 's/^.*code=//' | sed -e 's/ .*$//')
 
@@ -47,7 +46,7 @@ RESPONSE=$(curl -s https://accounts.spotify.com/api/token \
   -H "Authorization: Basic $(echo -n "$CLIENT_ID:$CLIENT_SECRET" | base64)" \
   -d "grant_type=authorization_code&code=$CODE&redirect_uri=http%3A%2F%2Flocalhost%3A$PORT%2F")
 
-echo $RESPONSE
+#echo $RESPONSE
 #echo "Expires:"
 #echo $RESPONSE | jq -r '.expires_in'
 #
@@ -59,11 +58,14 @@ echo $RESPONSE
 #echo $RESPONSE | jq -r '.refresh_token'
 
 echo "{" > .credentials.json
-echo "   \"client_id\" : \"$CLIENT_ID\"" >> .credentials.json
+echo "   \"client_id\" : \"$CLIENT_ID\"," >> .credentials.json
+echo "   \"client_secret\" : \"$CLIENT_SECRET\"," >> .credentials.json
 echo -n "   \"refresh_token\": \"" >> .credentials.json
-echo $RESPONSE | jq -rj '.refresh_token'  >> .credentials.json
+echo $RESPONSE | jq -j '.refresh_token'  >> .credentials.json
 echo "\"" >> .credentials.json
 echo "}" >> .credentials.json
 
 chmod 600 .credentials.json
 
+echo $RESPONSE | jq -r '.access_token'  > .access_token
+chmod 600 .access_token

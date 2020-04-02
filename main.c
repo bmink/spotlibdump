@@ -15,6 +15,7 @@ void usage(char *);
 #define ALBMODE_LIKED_TRACKS	1
 
 int dump_albums(int);
+int get_access_token(int);
 
 
 int
@@ -34,12 +35,6 @@ main(int argc, char **argv)
 		err = -1;
 		goto end_label;
 	}	
-
-	if(argc != 3 || xstrempty(argv[1]) || xstrempty(argv[2])) {
-		usage(execn);
-		err = -1;
-		goto end_label;
-	}
 
 	datadir = binit();
 	if(datadir == NULL) {
@@ -68,6 +63,13 @@ main(int argc, char **argv)
 	ret = bcurl_init();
 	if(ret != 0) {
 		fprintf(stderr, "Couldn't initialize curl\n");
+		err = -1;
+		goto end_label;
+	}
+
+	ret = get_access_token();
+	if(ret != 0) {
+		fprintf(stderr, "Couldn't get access token\nn");
 		err = -1;
 		goto end_label;
 	}
@@ -133,6 +135,17 @@ usage(char *execn)
 		return;
 
 	printf("Usage: %s <Spotify User ID> <token>\n", execn);
+}
+
+
+int
+get_access_token()
+{
+
+
+end_label:
+
+
 }
 
 
