@@ -14,22 +14,24 @@
 # On your Spotify dev dashboard, your app must have "http://localhost:8082/'
 # as its redirect_uri.
 
-#REFRESH_MIN=0
 REFRESH_MIN=45
+#REFRESH_MIN=0
 
-if [[ ! -f .credentials.json ]]; then
+DATADIR="$HOME/.spotlibdump"
+
+if [[ ! -f "$DATADIR/.credentials.json" ]]; then
 	echo "No credentials file, run do_authorize.sh first"
 	exit -1
 fi
 
-if [[ $(find .access_token -mmin -$REFRESH_MIN) ]]; then
+if [[ $(find "$DATADIR/.access_token" -mmin -$REFRESH_MIN) ]]; then
 	# Token is still good, nothing to do.
 	exit 0
 fi
 
-CLIENT_ID=$(cat .credentials.json | jq -r '.client_id')
-CLIENT_SECRET=$(cat .credentials.json | jq -r '.client_secret')
-REFRESH_TOKEN=$(cat .credentials.json | jq -r '.refresh_token')
+CLIENT_ID=$(cat "$DATADIR/.credentials.json" | jq -r '.client_id')
+CLIENT_SECRET=$(cat "$DATADIR/.credentials.json" | jq -r '.client_secret')
+REFRESH_TOKEN=$(cat "$DATADIR/.credentials.json" | jq -r '.refresh_token')
 
 echo Refreshing
 
@@ -42,7 +44,7 @@ RESPONSE=$(curl -s "$URL" -H "Content-Type:application/x-www-form-urlencoded" \
 
 #echo $RESPONSE
 
-echo $RESPONSE | jq -r '.access_token'  > .access_token
-chmod 600 .access_token
+echo $RESPONSE | jq -r '.access_token'  > "$DATADIR/.access_token"
+chmod 600 "$DATADIR/.access_token"
 
 echo Done

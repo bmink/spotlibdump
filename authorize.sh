@@ -25,6 +25,11 @@ REDIRECT_URI="http%3A%2F%2Flocalhost%3A$PORT%2F"
 SCOPES="playlist-read-private user-library-read"
 AUTH_URL="https://accounts.spotify.com/authorize/?response_type=code&client_id=$CLIENT_ID&redirect_uri=$REDIRECT_URI"
 
+DATADIR="$HOME/.spotlibdump"
+if [[ ! -d "$DATADIR" ]]; then
+	mkdir "$DATADIR"
+fi
+
 if [[ ! -z $SCOPES ]]; then
 	ENCODED_SCOPES=$(echo $SCOPES| tr ' ' '%' | sed s/%/%20/g)
 	AUTH_URL="$AUTH_URL&scope=$ENCODED_SCOPES"
@@ -57,15 +62,15 @@ RESPONSE=$(curl -s https://accounts.spotify.com/api/token \
 #echo "Refresh token:"
 #echo $RESPONSE | jq -r '.refresh_token'
 
-echo "{" > .credentials.json
-echo "   \"client_id\" : \"$CLIENT_ID\"," >> .credentials.json
-echo "   \"client_secret\" : \"$CLIENT_SECRET\"," >> .credentials.json
-echo -n "   \"refresh_token\": \"" >> .credentials.json
-echo $RESPONSE | jq -j '.refresh_token'  >> .credentials.json
-echo "\"" >> .credentials.json
-echo "}" >> .credentials.json
+echo "{" > "$DATADIR/.credentials.json"
+echo "   \"client_id\" : \"$CLIENT_ID\"," >> "$DATADIR/.credentials.json"
+echo "   \"client_secret\" : \"$CLIENT_SECRET\"," >> "$DATADIR/.credentials.json"
+echo -n "   \"refresh_token\": \"" >> "$DATADIR/.credentials.json"
+echo $RESPONSE | jq -j '.refresh_token'  >> "$DATADIR/.credentials.json"
+echo "\"" >> "$DATADIR/.credentials.json"
+echo "}" >> "$DATADIR/.credentials.json"
 
-chmod 600 .credentials.json
+chmod 600 "$DATADIR/.credentials.json"
 
-echo $RESPONSE | jq -r '.access_token'  > .access_token
-chmod 600 .access_token
+echo $RESPONSE | jq -r '.access_token'  > "$DATADIR/.access_token"
+chmod 600 "$DATADIR/.access_token"

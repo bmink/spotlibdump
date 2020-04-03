@@ -9,13 +9,15 @@
 #include "cJSON_helper.h"
 
 bstr_t	*datadir;
+bstr_t	*access_tok;
+
 void usage(char *);
 
 #define ALBMODE_SAVED_ALBUMS	0
 #define ALBMODE_LIKED_TRACKS	1
 
+int load_access_tok(void);
 int dump_albums(int);
-int get_access_token(int);
 
 
 int
@@ -67,12 +69,15 @@ main(int argc, char **argv)
 		goto end_label;
 	}
 
-	ret = get_access_token();
+	ret = load_access_tok();
 	if(ret != 0) {
-		fprintf(stderr, "Couldn't get access token\nn");
+		fprintf(stderr, "Couldn't load access token\nn");
 		err = -1;
 		goto end_label;
 	}
+
+printf("access_tok=%s", bget(access_tok));
+exit(0);
 
 	ret = bcurl_header_add("Accept: application/json");
 	if(ret != 0) {
@@ -123,6 +128,7 @@ end_label:
 	
 	bcurl_uninit();
 	buninit(&datadir);
+	buninit(&access_tok);
 
 	return err;
 }
@@ -138,12 +144,58 @@ usage(char *execn)
 }
 
 
-int
-get_access_token()
-{
+#define FILEN_ACCESS_TOK	".access_token"
 
+int
+load_access_tok(void)
+{
+	int	err;
+	int	ret;
+	bstr_t	*filen;
+
+	err = 0;
+	filen = NULL;
+
+	access_tok = binit();
+	if(access_tok == NULL) {
+		fprintf(stderr, "Couldn't allocate access_tok\n");
+		err = ENOMEM;
+		goto end_label;
+	}
+
+	filen = binit();
+	if(filen == NULL) {
+		fprintf(stderr, "Couldn't allocate filen\n");
+		err = ENOMEM;
+		goto end_label;
+	}
+	bprintf(filen, "%s/%s", bget(datadir), FILEN_ACCESS_TOK);
+printf("%s", bget(filen));
+
+	ret = bfromfile(access_tok, bget(filen));
+	if(ret != 0) {
+		fprintf(stderr, "Couldn't load access token: %s\n",
+		    strerror(ret));
+		err = ret;
+		goto end_label;
+	}
+
+	ret = bstrchopnewline(access_tok);
+	if(ret != 0) {
+		fprintf(stderr, "Couldn't chop newline from ccess token: %s\n",
+		    strerror(ret));
+		err = ret;
+		goto end_label;
+	}
 
 end_label:
+
+	if(err != 0) {
+		buninit(&access_tok);
+	}
+	buninit(&filen);
+
+	return err;
 
 
 }
