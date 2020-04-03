@@ -76,9 +76,6 @@ main(int argc, char **argv)
 		goto end_label;
 	}
 
-printf("access_tok=%s", bget(access_tok));
-exit(0);
-
 	ret = bcurl_header_add("Accept: application/json");
 	if(ret != 0) {
 		fprintf(stderr, "Couldn't add Accept: header\n");
@@ -92,7 +89,7 @@ exit(0);
 		err = -1;
 		goto end_label;
 	}
-	bprintf(authhdr, "Authorization: Bearer %s", argv[2]);
+	bprintf(authhdr, "Authorization: Bearer %s", bget(access_tok));
 
 	ret = bcurl_header_add(bget(authhdr));
 	if(ret != 0) {
@@ -170,7 +167,6 @@ load_access_tok(void)
 		goto end_label;
 	}
 	bprintf(filen, "%s/%s", bget(datadir), FILEN_ACCESS_TOK);
-printf("%s", bget(filen));
 
 	ret = bfromfile(access_tok, bget(filen));
 	if(ret != 0) {
