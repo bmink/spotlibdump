@@ -27,6 +27,10 @@ if [[ $(find .access_token -mmin -$REFRESH_MIN) ]]; then
 	exit 0
 fi
 
+CLIENT_ID=$(cat .credentials.json | jq -r '.client_id')
+CLIENT_SECRET=$(cat .credentials.json | jq -r '.client_secret')
+REFRESH_TOKEN=$(cat .credentials.json | jq -r '.refresh_token')
+
 echo Refreshing
 
 URL=https://accounts.spotify.com/api/token
@@ -36,7 +40,7 @@ RESPONSE=$(curl -s "$URL" -H "Content-Type:application/x-www-form-urlencoded" \
   -d "grant_type=refresh_token&refresh_token=$REFRESH_TOKEN")
 
 
-echo $RESPONSE
+#echo $RESPONSE
 
 echo $RESPONSE | jq -r '.access_token'  > .access_token
 chmod 600 .access_token
