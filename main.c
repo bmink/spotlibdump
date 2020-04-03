@@ -18,6 +18,7 @@ void usage(char *);
 
 int load_access_tok(void);
 int dump_albums(int);
+int dump_playlists(void);
 
 
 int
@@ -119,6 +120,15 @@ main(int argc, char **argv)
 	}
 	printf("Done.\n");
 
+	printf("Getting playlists...\n");
+	fflush(stdout);
+	ret = dump_playlists();
+	if(ret != 0) {
+		fprintf(stderr, "Could not get playlists.\n");
+		err = -1;
+		goto end_label;
+	}
+	printf("Done.\n");
 
 
 end_label:
@@ -202,7 +212,7 @@ end_label:
 #define FILEN_ALBUMS	"spotlib_saved_albums.txt"
 #define FILEN_LT_ALBUMS	"spotlib_liked_track_albums.txt"
 
-int process_items(int, cJSON *, bstr_t *);
+int process_items_album(int, cJSON *, bstr_t *);
 
 
 int
@@ -296,7 +306,7 @@ dump_albums(int mode)
 			goto end_label;
 		}
 
-		ret = process_items(mode, items, out);
+		ret = process_items_album(mode, items, out);
 		if(ret != 0) {
 			fprintf(stderr, "Couldn't process items\n");
 			err = ret;
@@ -353,7 +363,7 @@ end_label:
 
 
 int
-process_items(int mode, cJSON *items, bstr_t *out)
+process_items_album(int mode, cJSON *items, bstr_t *out)
 {
 	cJSON		*item;
 	bstr_t		*addedat;
@@ -516,5 +526,234 @@ end_label:
 	return err;
 }
 
+
+int process_items_pl(cJSON *, bstr_t *);
+
+#define URL_PLAYLISTS	"https://api.spotify.com/v1/me/playlists"
+#define FILEN_PLAYLISTS	"spotlib_playlists.txt"
+
+
+int
+dump_playlists(void)
+{
+	bstr_t		*resp;
+	cJSON		*json;
+	cJSON		*items;
+	bstr_t		*url;
+	int		err;
+	int		ret;
+	bstr_t		*out;
+	bstr_t		*filen;
+	bstr_t		*filen_tmp;
+
+	err = 0;
+	resp = 0;
+	json = NULL;
+	url = NULL;
+	out = NULL;
+	filen = NULL;
+	filen_tmp = NULL;
+
+
+	url = binit();
+	if(!url) {
+		fprintf(stderr, "Couldn't allocate url\n");
+		err = ENOMEM;
+		goto end_label;
+	}
+	bprintf(url, URL_PLAYLISTS);
+
+	out = binit();
+	if(!out) {
+		fprintf(stderr, "Couldn't allocate out\n");
+		err = ENOMEM;
+		goto end_label;
+	}
+
+	filen = binit();
+	if(!filen) {
+		fprintf(stderr, "Couldn't allocate filen\n");
+		err = ENOMEM;
+		goto end_label;
+	}
+	bprintf(filen, "%s/%s", bget(datadir), FILEN_PLAYLISTS);
+
+	filen_tmp = binit();
+	if(!filen_tmp) {
+		fprintf(stderr, "Couldn't allocate filen_tmp\n");
+		err = ENOMEM;
+		goto end_label;
+	}
+	bprintf(filen_tmp, "%s.%d", bget(filen), getpid());
+
+	while(1) {
+
+		ret = bcurl_get(bget(url), &resp);
+		if(ret != 0) {
+			fprintf(stderr, "Couldn't get playlist list\n");
+			err = ret;
+			goto end_label;
+		}
+
+#if 0
+		printf("%s\n", bget(resp));
+#endif
+
+		json = cJSON_Parse(bget(resp));
+		if(json == NULL) {
+			fprintf(stderr, "Couldn't parse JSON\n");
+			err = ENOEXEC;
+			goto end_label;
+		}
+
+		items = cJSON_GetObjectItemCaseSensitive(json, "items");
+		if(!items) {
+			fprintf(stderr, "Didn't find items\n");
+			err = ENOENT;
+			goto end_label;
+		}
+
+		ret = process_items_pl(items, out);
+		if(ret != 0) {
+			fprintf(stderr, "Couldn't process items\n");
+			err = ret;
+			goto end_label;
+		}
+
+		bclear(url);
+		ret = cjson_get_childstr(json, "next", url);
+
+		cJSON_Delete(json);
+		json = NULL;
+
+		if(ret != 0)
+			break;
+#if 0
+		printf("next url: %s\n", bget(url));
+#endif
+	}
+
+	ret = btofile(bget(filen_tmp), out);
+	if(ret != 0) {
+		fprintf(stderr, "Couldn't write file: %s\n", bget(filen_tmp));
+		err = ret;
+		goto end_label;
+	}
+
+	ret = rename(bget(filen_tmp), bget(filen));
+	if(ret != 0) {
+		fprintf(stderr, "Couldn't rename file to: %s\n", bget(filen));
+		err = ret;
+		goto end_label;
+	}
+
+end_label:
+
+	buninit(&resp);
+	buninit(&url);
+	buninit(&out);
+	buninit(&filen);
+
+	if(!bstrempty(filen_tmp)) {
+		unlink(bget(filen_tmp));
+	}
+
+	buninit(&filen_tmp);
+
+	if(json) {
+		cJSON_Delete(json);
+		json = NULL;	
+	}
+
+	return err;
+}
+
+
+int
+process_items_pl(cJSON *items, bstr_t *out)
+{
+	cJSON		*item;
+	cJSON		*owner;
+	bstr_t		*plnam;
+	bstr_t		*pluri;
+	bstr_t		*ownernam;
+	int		err;
+	int		ret;
+
+	err = 0;
+	plnam = NULL;
+	pluri = NULL;
+	ownernam = NULL;
+
+	if(items == NULL)
+		return EINVAL;
+
+	for(item = items->child; item; item = item->next) {
+
+		plnam = binit();
+		if(!plnam) {
+			fprintf(stderr, "Couldn't allocate plnam\n");
+			err = ENOMEM;
+			goto end_label;
+		}
+
+		pluri = binit();
+		if(!pluri) {
+			fprintf(stderr, "Couldn't allocate pluri\n");
+			err = ENOMEM;
+			goto end_label;
+		}
+
+		ownernam = binit();
+		if(!ownernam) {
+			fprintf(stderr, "Couldn't allocate ownernam\n");
+			err = ENOMEM;
+			goto end_label;
+		}
+
+		ret = cjson_get_childstr(item, "name", plnam);
+		if(ret != 0) {
+			fprintf(stderr, "Item didn't contain name\n");
+			err = ENOENT;
+			goto end_label;
+		}
+
+		ret = cjson_get_childstr(item, "uri", pluri);
+		if(ret != 0) {
+			fprintf(stderr, "Item didn't contain uri\n");
+			err = ENOENT;
+			goto end_label;
+		}
+
+		owner = cJSON_GetObjectItemCaseSensitive(item, "owner");
+		if(!owner) {
+			fprintf(stderr, "Item didn't contain owner\n");
+			err = ENOMEM;
+			goto end_label;
+		}
+
+		ret = cjson_get_childstr(owner, "display_name", ownernam);
+		if(ret != 0) {
+			fprintf(stderr, "Owner didn't contain display_name\n");
+			err = ENOENT;
+			goto end_label;
+		}
+
+		bprintf(out, "%s | %s | %s\n", bget(ownernam), bget(plnam),
+		    bget(pluri));
+
+		buninit(&plnam);
+		buninit(&pluri);
+		buninit(&ownernam);
+	}
+
+end_label:
+	
+	buninit(&plnam);
+	buninit(&pluri);
+	buninit(&ownernam);
+
+	return err;
+}
 
 

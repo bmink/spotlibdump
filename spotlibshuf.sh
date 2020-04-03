@@ -5,6 +5,8 @@ if [ "$1" = "1" ]; then
 	LIBFILE=~/.spotlibdump/spotlib_saved_albums.txt
 elif [ "$1" = "2" ]; then
 	LIBFILE=~/.spotlibdump/spotlib_liked_track_albums.txt
+elif [ "$1" = "3" ]; then
+	LIBFILE=~/.spotlibdump/spotlib_playlists.txt
 else
 	echo "No valid argument specified."
 	exit -1
