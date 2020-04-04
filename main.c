@@ -20,6 +20,9 @@ int load_access_tok(void);
 int dump_albums(int);
 int dump_playlists(void);
 
+#define MODE_LIBDUMP	0
+#define MODE_UNSETREP	1
+
 
 int
 main(int argc, char **argv)
@@ -28,9 +31,11 @@ main(int argc, char **argv)
 	int		ret;
 	char		*execn;
 	bstr_t		*authhdr;
+	int		mode;
 
 	err = 0;
 	datadir = NULL;
+	mode = MODE_LIBDUMP;
 
 	execn = basename(argv[0]);
 	if(xstrempty(execn)) {
@@ -58,6 +63,16 @@ main(int argc, char **argv)
 		if(ret != 0) {
 			fprintf(stderr, "Could not create data directory: %s\n",
 			   strerror(ret));
+			err = -1;
+			goto end_label;
+		}
+	}
+
+	if(argc > 1) {
+		if((argc == 2) && (!xstrcmp(argv[1], "unsetrep"))) {
+			mode = MODE_UNSETREP;
+		} else {
+			fprintf(stderr, "Wrong arguments specified\n");
 			err = -1;
 			goto end_label;
 		}
@@ -100,35 +115,57 @@ main(int argc, char **argv)
 	}
 	buninit(&authhdr);
 
-	printf("Getting saved albums...\n");
-	fflush(stdout);
-	ret = dump_albums(ALBMODE_SAVED_ALBUMS);
-	if(ret != 0) {
-		fprintf(stderr, "Could not get albums.\n");
-		err = -1;
-		goto end_label;
-	}
-	printf("Done.\n");
+	switch(mode) {
 
-	printf("Getting albums from liked tracks...\n");
-	fflush(stdout);
-	ret = dump_albums(ALBMODE_LIKED_TRACKS);
-	if(ret != 0) {
-		fprintf(stderr, "Could not get albums from saved tracks.\n");
-		err = -1;
-		goto end_label;
-	}
-	printf("Done.\n");
+	case MODE_LIBDUMP:
+	default:
+		printf("Getting saved albums...\n");
+		fflush(stdout);
+		ret = dump_albums(ALBMODE_SAVED_ALBUMS);
+		if(ret != 0) {
+			fprintf(stderr, "Could not get albums.\n");
+			err = -1;
+			goto end_label;
+		}
+		printf("Done.\n");
+	
+		printf("Getting albums from liked tracks...\n");
+		fflush(stdout);
+		ret = dump_albums(ALBMODE_LIKED_TRACKS);
+		if(ret != 0) {
+			fprintf(stderr, "Could not get albums from saved tracks.\n");
+			err = -1;
+			goto end_label;
+		}
+		printf("Done.\n");
+	
+		printf("Getting playlists...\n");
+		fflush(stdout);
+		ret = dump_playlists();
+		if(ret != 0) {
+			fprintf(stderr, "Could not get playlists.\n");
+			err = -1;
+			goto end_label;
+		}
+	 	printf("Done.\n");
+		
+		break;
 
-	printf("Getting playlists...\n");
-	fflush(stdout);
-	ret = dump_playlists();
-	if(ret != 0) {
-		fprintf(stderr, "Could not get playlists.\n");
-		err = -1;
-		goto end_label;
+	case MODE_UNSETREP:
+		printf("Unsetting repeat...\n");
+		fflush(stdout);
+		ret = unset_repeat();
+		if(ret != 0) {
+			fprintf(stderr, "Could not unset repeat.\n");
+			err = -1;
+			goto end_label;
+		}
+	 	printf("Done.\n");
+		
+		break;
+
+	
 	}
-	printf("Done.\n");
 
 
 end_label:
@@ -147,7 +184,7 @@ usage(char *execn)
 	if(xstrempty(execn))
 		return;
 
-	printf("Usage: %s <Spotify User ID> <token>\n", execn);
+	printf("Usage: %s [unsetrep]\n", execn);
 }
 
 
@@ -756,4 +793,144 @@ end_label:
 	return err;
 }
 
+
+
+#define URL_PLAYLISTS	"https://api.spotify.com/v1/me/playlists"
+#define FILEN_PLAYLISTS	"spotlib_playlists.txt"
+
+
+int
+dump_playlists(void)
+{
+	bstr_t		*resp;
+	cJSON		*json;
+	cJSON		*items;
+	bstr_t		*url;
+	int		err;
+	int		ret;
+	bstr_t		*out;
+	bstr_t		*filen;
+	bstr_t		*filen_tmp;
+
+	err = 0;
+	resp = 0;
+	json = NULL;
+	url = NULL;
+	out = NULL;
+	filen = NULL;
+	filen_tmp = NULL;
+
+
+	url = binit();
+	if(!url) {
+		fprintf(stderr, "Couldn't allocate url\n");
+		err = ENOMEM;
+		goto end_label;
+	}
+	bprintf(url, URL_PLAYLISTS);
+
+	out = binit();
+	if(!out) {
+		fprintf(stderr, "Couldn't allocate out\n");
+		err = ENOMEM;
+		goto end_label;
+	}
+
+	filen = binit();
+	if(!filen) {
+		fprintf(stderr, "Couldn't allocate filen\n");
+		err = ENOMEM;
+		goto end_label;
+	}
+	bprintf(filen, "%s/%s", bget(datadir), FILEN_PLAYLISTS);
+
+	filen_tmp = binit();
+	if(!filen_tmp) {
+		fprintf(stderr, "Couldn't allocate filen_tmp\n");
+		err = ENOMEM;
+		goto end_label;
+	}
+	bprintf(filen_tmp, "%s.%d", bget(filen), getpid());
+
+	while(1) {
+
+		ret = bcurl_get(bget(url), &resp);
+		if(ret != 0) {
+			fprintf(stderr, "Couldn't get playlist list\n");
+			err = ret;
+			goto end_label;
+		}
+
+#if 0
+		printf("%s\n", bget(resp));
+#endif
+
+		json = cJSON_Parse(bget(resp));
+		if(json == NULL) {
+			fprintf(stderr, "Couldn't parse JSON\n");
+			err = ENOEXEC;
+			goto end_label;
+		}
+
+		items = cJSON_GetObjectItemCaseSensitive(json, "items");
+		if(!items) {
+			fprintf(stderr, "Didn't find items\n");
+			err = ENOENT;
+			goto end_label;
+		}
+
+		ret = process_items_pl(items, out);
+		if(ret != 0) {
+			fprintf(stderr, "Couldn't process items\n");
+			err = ret;
+			goto end_label;
+		}
+
+		bclear(url);
+		ret = cjson_get_childstr(json, "next", url);
+
+		cJSON_Delete(json);
+		json = NULL;
+
+		if(ret != 0)
+			break;
+#if 0
+		printf("next url: %s\n", bget(url));
+#endif
+	}
+
+	ret = btofile(bget(filen_tmp), out);
+	if(ret != 0) {
+		fprintf(stderr, "Couldn't write file: %s\n", bget(filen_tmp));
+		err = ret;
+		goto end_label;
+	}
+
+	ret = rename(bget(filen_tmp), bget(filen));
+	if(ret != 0) {
+		fprintf(stderr, "Couldn't rename file to: %s\n", bget(filen));
+		err = ret;
+		goto end_label;
+	}
+
+end_label:
+
+	buninit(&resp);
+	buninit(&url);
+	buninit(&out);
+	buninit(&filen);
+
+	if(!bstrempty(filen_tmp)) {
+		unlink(bget(filen_tmp));
+	}
+
+	buninit(&filen_tmp);
+
+	if(json) {
+		cJSON_Delete(json);
+		json = NULL;	
+	}
+
+	return err;
+}
 

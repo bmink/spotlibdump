@@ -22,7 +22,7 @@ CLIENT_ID=$1
 CLIENT_SECRET=$2
 PORT=8082
 REDIRECT_URI="http%3A%2F%2Flocalhost%3A$PORT%2F"
-SCOPES="playlist-read-private user-library-read"
+SCOPES="playlist-read-private user-library-read user-modify-playback-state"
 AUTH_URL="https://accounts.spotify.com/authorize/?response_type=code&client_id=$CLIENT_ID&redirect_uri=$REDIRECT_URI"
 
 DATADIR="$HOME/.spotlibdump"
