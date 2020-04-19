@@ -812,14 +812,12 @@ int
 unset_repeat(void)
 {
 	bstr_t		*resp;
-	cJSON		*json;
 	bstr_t		*url;
 	int		err;
 	int		ret;
 
 	err = 0;
 	resp = 0;
-	json = NULL;
 	url = NULL;
 
 	url = binit();
@@ -837,49 +835,15 @@ unset_repeat(void)
 		goto end_label;
 	}
 
-#if 1
+#if 0
 	printf("%d\n%s\n", ret, bget(resp));
 	exit(0);
-#endif
-
-
-#if 0
-
-		json = cJSON_Parse(bget(resp));
-		if(json == NULL) {
-			fprintf(stderr, "Couldn't parse JSON\n");
-			err = ENOEXEC;
-			goto end_label;
-		}
-
-		items = cJSON_GetObjectItemCaseSensitive(json, "items");
-		if(!items) {
-			fprintf(stderr, "Didn't find items\n");
-			err = ENOENT;
-			goto end_label;
-		}
-
-
-		cJSON_Delete(json);
-		json = NULL;
-
-		if(ret != 0)
-			break;
-#if 0
-		printf("next url: %s\n", bget(url));
-#endif
-	}
 #endif
 
 end_label:
 
 	buninit(&resp);
 	buninit(&url);
-
-	if(json) {
-		cJSON_Delete(json);
-		json = NULL;	
-	}
 
 	return err;
 }
