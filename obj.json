@@ -1,0 +1,16 @@
+mlm:spoti_alb:all
+mlm:spoti_alb:recent
+mlm:spoti_pl:all
+mlm:spoti_pl:recent
+mlm:vinyl_lp:all
+mlm:vinyl_lp:recent
+mlm:file_alb:all
+mlm:file_alb:recent
+
+{
+
+	"type": "spoti_alb" | "spoti_pl" | "vinyl_alb" | "file_alb",
+	"artist_name": "",
+	"album_name": "",
+	"open_url:" "",
+}
