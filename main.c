@@ -5,6 +5,7 @@
 #include "bstr.h"
 #include "bcurl.h"
 #include "bfs.h"
+#include "blog.h"
 #include "cJSON.h"
 #include "cJSON_helper.h"
 
@@ -19,6 +20,7 @@ void usage(char *);
 int load_access_tok(void);
 int dump_albums(int);
 int dump_playlists(void);
+int unset_repeat(void);
 
 #define MODE_LIBDUMP	0
 #define MODE_UNSETREP	1
@@ -43,6 +45,13 @@ main(int argc, char **argv)
 		err = -1;
 		goto end_label;
 	}	
+
+	ret = blog_init(execn);
+	if(ret != 0) {
+		fprintf(stderr, "Could not initialize logging: %s\n",
+		    strerror(ret));
+		goto end_label;
+	}
 
 	datadir = binit();
 	if(datadir == NULL) {
@@ -173,6 +182,8 @@ end_label:
 	bcurl_uninit();
 	buninit(&datadir);
 	buninit(&access_tok);
+
+	blog_uninit();
 
 	return err;
 }
@@ -794,32 +805,22 @@ end_label:
 }
 
 
-
-#define URL_PLAYLISTS	"https://api.spotify.com/v1/me/playlists"
-#define FILEN_PLAYLISTS	"spotlib_playlists.txt"
-
+#define URL_PLAYER_UNSET_REPEAT \
+	"https://api.spotify.com/v1/me/player/repeat?state=off"
 
 int
-dump_playlists(void)
+unset_repeat(void)
 {
 	bstr_t		*resp;
 	cJSON		*json;
-	cJSON		*items;
 	bstr_t		*url;
 	int		err;
 	int		ret;
-	bstr_t		*out;
-	bstr_t		*filen;
-	bstr_t		*filen_tmp;
 
 	err = 0;
 	resp = 0;
 	json = NULL;
 	url = NULL;
-	out = NULL;
-	filen = NULL;
-	filen_tmp = NULL;
-
 
 	url = binit();
 	if(!url) {
@@ -827,43 +828,22 @@ dump_playlists(void)
 		err = ENOMEM;
 		goto end_label;
 	}
-	bprintf(url, URL_PLAYLISTS);
+	bprintf(url, URL_PLAYER_UNSET_REPEAT);
 
-	out = binit();
-	if(!out) {
-		fprintf(stderr, "Couldn't allocate out\n");
-		err = ENOMEM;
+	ret = bcurl_put(bget(url), NULL, &resp);
+	if(ret != 0) {
+		fprintf(stderr, "Couldn't PUT unset URL\n");
+		err = ret;
 		goto end_label;
 	}
 
-	filen = binit();
-	if(!filen) {
-		fprintf(stderr, "Couldn't allocate filen\n");
-		err = ENOMEM;
-		goto end_label;
-	}
-	bprintf(filen, "%s/%s", bget(datadir), FILEN_PLAYLISTS);
+#if 1
+	printf("%d\n%s\n", ret, bget(resp));
+	exit(0);
+#endif
 
-	filen_tmp = binit();
-	if(!filen_tmp) {
-		fprintf(stderr, "Couldn't allocate filen_tmp\n");
-		err = ENOMEM;
-		goto end_label;
-	}
-	bprintf(filen_tmp, "%s.%d", bget(filen), getpid());
-
-	while(1) {
-
-		ret = bcurl_get(bget(url), &resp);
-		if(ret != 0) {
-			fprintf(stderr, "Couldn't get playlist list\n");
-			err = ret;
-			goto end_label;
-		}
 
 #if 0
-		printf("%s\n", bget(resp));
-#endif
 
 		json = cJSON_Parse(bget(resp));
 		if(json == NULL) {
@@ -879,15 +859,6 @@ dump_playlists(void)
 			goto end_label;
 		}
 
-		ret = process_items_pl(items, out);
-		if(ret != 0) {
-			fprintf(stderr, "Couldn't process items\n");
-			err = ret;
-			goto end_label;
-		}
-
-		bclear(url);
-		ret = cjson_get_childstr(json, "next", url);
 
 		cJSON_Delete(json);
 		json = NULL;
@@ -898,33 +869,12 @@ dump_playlists(void)
 		printf("next url: %s\n", bget(url));
 #endif
 	}
-
-	ret = btofile(bget(filen_tmp), out);
-	if(ret != 0) {
-		fprintf(stderr, "Couldn't write file: %s\n", bget(filen_tmp));
-		err = ret;
-		goto end_label;
-	}
-
-	ret = rename(bget(filen_tmp), bget(filen));
-	if(ret != 0) {
-		fprintf(stderr, "Couldn't rename file to: %s\n", bget(filen));
-		err = ret;
-		goto end_label;
-	}
+#endif
 
 end_label:
 
 	buninit(&resp);
 	buninit(&url);
-	buninit(&out);
-	buninit(&filen);
-
-	if(!bstrempty(filen_tmp)) {
-		unlink(bget(filen_tmp));
-	}
-
-	buninit(&filen_tmp);
 
 	if(json) {
 		cJSON_Delete(json);
