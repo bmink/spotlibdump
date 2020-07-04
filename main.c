@@ -236,7 +236,7 @@ load_access_tok(void)
 
 	ret = bstrchopnewline(access_tok);
 	if(ret != 0) {
-		fprintf(stderr, "Couldn't chop newline from ccess token: %s\n",
+		fprintf(stderr, "Couldn't chop newline from access token: %s\n",
 		    strerror(ret));
 		err = ret;
 		goto end_label;
