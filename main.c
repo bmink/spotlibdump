@@ -439,28 +439,43 @@ process_items_album(int mode, cJSON *items, bstr_t *out)
 	if(mode != ALBMODE_SAVED_ALBUMS && mode != ALBMODE_LIKED_TRACKS)
 		return EINVAL;
 
+	addedat = binit();
+	if(!addedat) {
+		fprintf(stderr, "Couldn't allocate addedat\n");
+		err = ENOMEM;
+		goto end_label;
+	}
+
+	alburi = binit();
+	if(!alburi) {
+		fprintf(stderr, "Couldn't allocate alburi\n");
+		err = ENOMEM;
+		goto end_label;
+	}
+
+	albnam = binit();
+	if(!albnam) {
+		fprintf(stderr, "Couldn't allocate albnam\n");
+		err = ENOMEM;
+		goto end_label;
+	}
+
+	artnam = binit();
+	if(!artnam) {
+		fprintf(stderr, "Couldn't allocate artnam\n");
+		err = ENOMEM;
+		goto end_label;
+	}
+
+	artnam_sub = binit();
+	if(!artnam_sub) {
+		fprintf(stderr, "Couldn't allocate"
+		    " artnam_sub\n");
+		err = ENOMEM;
+		goto end_label;
+	}
+
 	for(item = items->child; item; item = item->next) {
-
-		addedat = binit();
-		if(!addedat) {
-			fprintf(stderr, "Couldn't allocate addedat\n");
-			err = ENOMEM;
-			goto end_label;
-		}
-
-		alburi = binit();
-		if(!alburi) {
-			fprintf(stderr, "Couldn't allocate alburi\n");
-			err = ENOMEM;
-			goto end_label;
-		}
-
-		albnam = binit();
-		if(!albnam) {
-			fprintf(stderr, "Couldn't allocate albnam\n");
-			err = ENOMEM;
-			goto end_label;
-		}
 
 		ret = cjson_get_childstr(item, "added_at", addedat);
 		if(ret != 0) {
@@ -515,23 +530,8 @@ process_items_album(int mode, cJSON *items, bstr_t *out)
 			goto end_label;
 		}
 
-		artnam = binit();
-		if(!artnam) {
-			fprintf(stderr, "Couldn't allocate artnam\n");
-			err = ENOMEM;
-			goto end_label;
-		}
-
 		for(artist = artists->child; artist; artist = artist->next) {
 
-			artnam_sub = binit();
-			if(!artnam_sub) {
-				fprintf(stderr, "Couldn't allocate"
-				    " artnam_sub\n");
-				err = ENOMEM;
-				goto end_label;
-			}
-			
 			ret = cjson_get_childstr(artist, "name", artnam_sub);
 			if(ret != 0) {
 				fprintf(stderr, "Artist didn't contain name\n");
@@ -544,7 +544,7 @@ process_items_album(int mode, cJSON *items, bstr_t *out)
 
 			bstrcat(artnam, bget(artnam_sub));
 
-			buninit(&artnam_sub);
+			bclear(artnam_sub);
 		}
 
 #if 0
@@ -557,10 +557,10 @@ process_items_album(int mode, cJSON *items, bstr_t *out)
 		bprintf(out, "%s - %s | %s\n", bget(artnam), bget(albnam),
 		    bget(alburi));
 
-		buninit(&artnam);
-		buninit(&addedat);
-		buninit(&alburi);
-		buninit(&albnam);
+		bclear(artnam);
+		bclear(addedat);
+		bclear(alburi);
+		bclear(albnam);
 	}
 
 end_label:
