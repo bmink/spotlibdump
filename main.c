@@ -8,6 +8,7 @@
 #include "blog.h"
 #include "cJSON.h"
 #include "cJSON_helper.h"
+#include "hiredis_helper.h"
 
 bstr_t	*datadir;
 bstr_t	*access_tok;
@@ -50,6 +51,12 @@ main(int argc, char **argv)
 	if(ret != 0) {
 		fprintf(stderr, "Could not initialize logging: %s\n",
 		    strerror(ret));
+		goto end_label;
+	}
+
+	ret = hiredis_init();
+	if(ret != 0) {
+		fprintf(stderr, "Could not connect to redis\n");
 		goto end_label;
 	}
 
@@ -183,6 +190,7 @@ end_label:
 	buninit(&datadir);
 	buninit(&access_tok);
 
+	hiredis_uninit();
 	blog_uninit();
 
 	return err;
@@ -199,17 +207,15 @@ usage(char *execn)
 }
 
 
-#define FILEN_ACCESS_TOK	".access_token"
+#define REDIS_KEY_ACCESSTOK	"spotlibdump:access_token"
 
 int
 load_access_tok(void)
 {
 	int	err;
 	int	ret;
-	bstr_t	*filen;
 
 	err = 0;
-	filen = NULL;
 
 	access_tok = binit();
 	if(access_tok == NULL) {
@@ -218,16 +224,8 @@ load_access_tok(void)
 		goto end_label;
 	}
 
-	filen = binit();
-	if(filen == NULL) {
-		fprintf(stderr, "Couldn't allocate filen\n");
-		err = ENOMEM;
-		goto end_label;
-	}
-	bprintf(filen, "%s/%s", bget(datadir), FILEN_ACCESS_TOK);
-
-	ret = bfromfile(access_tok, bget(filen));
-	if(ret != 0) {
+	ret = hiredis_get(REDIS_KEY_ACCESSTOK, access_tok);
+	if(ret != 0 || bstrempty(access_tok)) {
 		fprintf(stderr, "Couldn't load access token: %s\n",
 		    strerror(ret));
 		err = ret;
@@ -247,7 +245,6 @@ end_label:
 	if(err != 0) {
 		buninit(&access_tok);
 	}
-	buninit(&filen);
 
 	return err;
 
