@@ -18,17 +18,19 @@ if [[ -z "$1" || -z "$2" ]]; then
 	exit -1
 fi	
 
+if [[ -z "$REDIS_ADDR" ]]; then
+	echo "REDIS_ADDR is not set"
+	exit -1
+fi
+
 CLIENT_ID=$1
 CLIENT_SECRET=$2
 PORT=8082
 REDIRECT_URI="http%3A%2F%2Flocalhost%3A$PORT%2F"
 SCOPES="playlist-read-private user-library-read user-modify-playback-state"
 AUTH_URL="https://accounts.spotify.com/authorize/?response_type=code&client_id=$CLIENT_ID&redirect_uri=$REDIRECT_URI"
-
-DATADIR="$HOME/.spotlibdump"
-if [[ ! -d "$DATADIR" ]]; then
-	mkdir "$DATADIR"
-fi
+REDIS_KEY_CREDS="spotlibdump:credentials"
+REDIS_KEY_ACCESSTOK="spotlibdump:access_token"
 
 if [[ ! -z $SCOPES ]]; then
 	ENCODED_SCOPES=$(echo $SCOPES| tr ' ' '%' | sed s/%/%20/g)
@@ -62,15 +64,17 @@ RESPONSE=$(curl -s https://accounts.spotify.com/api/token \
 #echo "Refresh token:"
 #echo $RESPONSE | jq -r '.refresh_token'
 
-echo "{" > "$DATADIR/.credentials.json"
-echo "   \"client_id\" : \"$CLIENT_ID\"," >> "$DATADIR/.credentials.json"
-echo "   \"client_secret\" : \"$CLIENT_SECRET\"," >> "$DATADIR/.credentials.json"
-echo -n "   \"refresh_token\": \"" >> "$DATADIR/.credentials.json"
-echo $RESPONSE | jq -j '.refresh_token'  >> "$DATADIR/.credentials.json"
-echo "\"" >> "$DATADIR/.credentials.json"
-echo "}" >> "$DATADIR/.credentials.json"
+OUT="{"$'\n'
+OUT+="   \"client_id\" : \"$CLIENT_ID\","$'\n'
+OUT+="   \"client_secret\" : \"$CLIENT_SECRET\","$'\n'
+OUT+="   \"refresh_token\": \""
+OUT+=`echo $RESPONSE | jq -j '.refresh_token'`
+OUT+="\""$'\n'
+OUT+="}"$'\n'
 
-chmod 600 "$DATADIR/.credentials.json"
+redis-cli -h "$REDIS_ADDR" set "$REDIS_KEY_CREDS" "$OUT"
 
-echo $RESPONSE | jq -r '.access_token'  > "$DATADIR/.access_token"
-chmod 600 "$DATADIR/.access_token"
+ACCESS_TOKEN=`echo $RESPONSE | jq -r '.access_token'`
+
+redis-cli -h "$REDIS_ADDR" set "$REDIS_KEY_ACCESSTOK" "$ACCESS_TOKEN"
+

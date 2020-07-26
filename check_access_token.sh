@@ -14,26 +14,28 @@
 # On your Spotify dev dashboard, your app must have "http://localhost:8082/'
 # as its redirect_uri.
 
-REFRESH_MIN=45
-#REFRESH_MIN=0
-
-DATADIR="$HOME/.spotlibdump"
-
-if [[ ! -f "$DATADIR/.credentials.json" ]]; then
-	echo "No credentials file, run do_authorize.sh first"
+if [[ -z "$REDIS_ADDR" ]]; then
+	echo "REDIS_ADDR is not set."
 	exit -1
 fi
 
-if [[ $(find "$DATADIR/.access_token" -mmin -$REFRESH_MIN) ]]; then
-	# Token is still good, nothing to do.
-	exit 0
+REDIS_KEY_CREDS="spotlibdump:credentials"
+REDIS_KEY_ACCESSTOK="spotlibdump:access_token"
+
+KEY_EXISTS=`redis-cli -h $REDIS_ADDR --raw exists "$REDIS_KEY_CREDS"`
+
+if [[ "$KEY_EXISTS" -ne "1" ]]; then
+	echo "No credentials found in redis, run do_authorize.sh first"
+	exit -1
 fi
 
-CLIENT_ID=$(cat "$DATADIR/.credentials.json" | jq -r '.client_id')
-CLIENT_SECRET=$(cat "$DATADIR/.credentials.json" | jq -r '.client_secret')
-REFRESH_TOKEN=$(cat "$DATADIR/.credentials.json" | jq -r '.refresh_token')
+CREDS=`redis-cli -h $REDIS_ADDR --raw get "$REDIS_KEY_CREDS"`
 
-echo Refreshing
+CLIENT_ID=$(echo "$CREDS" | jq -r '.client_id')
+CLIENT_SECRET=$(echo "$CREDS" | jq -r '.client_secret')
+REFRESH_TOKEN=$(echo "$CREDS" | jq -r '.refresh_token')
+
+#echo Refreshing
 
 URL=https://accounts.spotify.com/api/token
 
@@ -44,7 +46,8 @@ RESPONSE=$(curl -s "$URL" -H "Content-Type:application/x-www-form-urlencoded" \
 
 #echo $RESPONSE
 
-echo $RESPONSE | jq -r '.access_token'  > "$DATADIR/.access_token"
-chmod 600 "$DATADIR/.access_token"
+ACCESS_TOKEN=`echo $RESPONSE | jq -r '.access_token'`
 
-echo Done
+redis-cli -h "$REDIS_ADDR" set "$REDIS_KEY_ACCESSTOK" "$ACCESS_TOKEN" >/dev/null
+
+#echo Done
