@@ -22,7 +22,7 @@ slsalb_t *slsalb_init(void);
 void slsalb_uninit(slsalb_t **);
 
 
-typedef struct slsplaylist {
+typedef struct slspl {
 	bstr_t	*sp_type;
 
 	bstr_t	*sp_name;
@@ -33,11 +33,10 @@ typedef struct slsplaylist {
 	bstr_t	*sp_caurl_lrg;
 	bstr_t	*sp_caurl_sml;
 
-} slsplaylist_t;
+} slspl_t;
 
-slsplaylist_t *slsplaylist_init(void);
-void slsplaylist_uninit(slsplaylist_t **);
-
+slspl_t *slsplaylist_init(void);
+void slspl_uninit(slspl_t **);
 
 #endif
 

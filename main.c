@@ -9,6 +9,7 @@
 #include "cJSON.h"
 #include "cJSON_helper.h"
 #include "hiredis_helper.h"
+#include "slsobj.h"
 
 bstr_t	*datadir;
 bstr_t	*access_tok;
@@ -411,23 +412,17 @@ int
 process_items_album(int mode, cJSON *items, bstr_t *out)
 {
 	cJSON		*item;
-	bstr_t		*addedat;
 	cJSON		*album;
 	cJSON		*track;
-	bstr_t		*alburi;
-	bstr_t		*albnam;
 	cJSON		*artists;
 	cJSON		*artist;
-	bstr_t		*artnam;
 	bstr_t		*artnam_sub;
 	int		err;
 	int		ret;
+	slsalb_t	*slsalb;
 
 	err = 0;
-	addedat = NULL;
-	alburi = NULL;
-	albnam = NULL;
-	artnam = NULL;
+	slsalb = NULL;
 	artnam_sub = NULL;
 
 	if(items == NULL)
@@ -436,50 +431,21 @@ process_items_album(int mode, cJSON *items, bstr_t *out)
 	if(mode != ALBMODE_SAVED_ALBUMS && mode != ALBMODE_LIKED_TRACKS)
 		return EINVAL;
 
-	addedat = binit();
-	if(!addedat) {
-		fprintf(stderr, "Couldn't allocate addedat\n");
-		err = ENOMEM;
-		goto end_label;
-	}
-
-	alburi = binit();
-	if(!alburi) {
-		fprintf(stderr, "Couldn't allocate alburi\n");
-		err = ENOMEM;
-		goto end_label;
-	}
-
-	albnam = binit();
-	if(!albnam) {
-		fprintf(stderr, "Couldn't allocate albnam\n");
-		err = ENOMEM;
-		goto end_label;
-	}
-
-	artnam = binit();
-	if(!artnam) {
-		fprintf(stderr, "Couldn't allocate artnam\n");
+	slsalb = slsalb_init();
+	if(slsalb == NULL) {
+		fprintf(stderr, "Couldn't allocate slsalb\n");
 		err = ENOMEM;
 		goto end_label;
 	}
 
 	artnam_sub = binit();
 	if(!artnam_sub) {
-		fprintf(stderr, "Couldn't allocate"
-		    " artnam_sub\n");
+		fprintf(stderr, "Couldn't allocate artnam_sub\n");
 		err = ENOMEM;
 		goto end_label;
 	}
 
 	for(item = items->child; item; item = item->next) {
-
-		ret = cjson_get_childstr(item, "added_at", addedat);
-		if(ret != 0) {
-			fprintf(stderr, "Item didn't contain added_at\n");
-			err = ENOENT;
-			goto end_label;
-		}
 
 		if(mode == ALBMODE_SAVED_ALBUMS) {
 			album = cJSON_GetObjectItemCaseSensitive(item, "album");
@@ -506,14 +472,14 @@ process_items_album(int mode, cJSON *items, bstr_t *out)
 			}
 		} 
 
-		ret = cjson_get_childstr(album, "uri", alburi);
+		ret = cjson_get_childstr(album, "uri", slsalb->sa_uri);
 		if(ret != 0) {
-			fprintf(stderr, "Album didn't contain id\n");
+			fprintf(stderr, "Album didn't contain uri\n");
 			err = ENOENT;
 			goto end_label;
 		}
 
-		ret = cjson_get_childstr(album, "name", albnam);
+		ret = cjson_get_childstr(album, "name", slsalb->sa_name);
 		if(ret != 0) {
 			fprintf(stderr, "Album didn't contain name\n");
 			err = ENOENT;
@@ -536,37 +502,39 @@ process_items_album(int mode, cJSON *items, bstr_t *out)
 				goto end_label;
 			}
 
-			if(!bstrempty(artnam))
-				bstrcat(artnam, ", ");
+			if(!bstrempty(slsalb->sa_artist))
+				bstrcat(slsalb->sa_artist, ", ");
 
-			bstrcat(artnam, bget(artnam_sub));
+			bstrcat(slsalb->sa_artist, bget(artnam_sub));
 
 			bclear(artnam_sub);
 		}
 
-#if 0
-		printf("art=%s\n", bget(artnam));
-		printf("alb=%s\n", bget(albnam));
-		printf("uri=%s\n", bget(alburi));
-		printf("added_at=%s\n", bget(addedat));
+#if 1
+		printf("art=%s\n", bget(slsalb->sa_artist));
+		printf("alb=%s\n", bget(slsalb->sa_name));
+		printf("uri=%s\n", bget(slsalb->sa_uri));
 		printf("\n");
 #endif
-		bprintf(out, "%s - %s | %s\n", bget(artnam), bget(albnam),
-		    bget(alburi));
+		bprintf(out, "%s - %s | %s\n", bget(slsalb->sa_artist),
+		    bget(slsalb->sa_name), bget(slsalb->sa_uri));
 
-		bclear(artnam);
-		bclear(addedat);
-		bclear(alburi);
-		bclear(albnam);
+		slsalb_uninit(&slsalb);
+
+		slsalb = slsalb_init();
+		if(slsalb == NULL) {
+			fprintf(stderr, "Couldn't allocate slsalb\n");
+			err = ENOMEM;
+			goto end_label;
+		}
+
 	}
 
 end_label:
 	
-	buninit(&addedat);
-	buninit(&alburi);
-	buninit(&albnam);
-	buninit(&artnam);
 	buninit(&artnam_sub);
+
+	slsalb_uninit(&slsalb);
 
 	return err;
 }
