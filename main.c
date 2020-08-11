@@ -422,10 +422,12 @@ process_items_album(int mode, cJSON *items, bstr_t *out)
 	int		err;
 	int		ret;
 	slsalb_t	*slsalb;
+	bstr_t		*slsalb_json;
 
 	err = 0;
 	slsalb = NULL;
 	artnam_sub = NULL;
+	slsalb_json = NULL;
 
 	if(items == NULL)
 		return EINVAL;
@@ -436,6 +438,13 @@ process_items_album(int mode, cJSON *items, bstr_t *out)
 	slsalb = slsalb_init(SLSOBJ_TYPE_SPOT);
 	if(slsalb == NULL) {
 		fprintf(stderr, "Couldn't allocate slsalb\n");
+		err = ENOMEM;
+		goto end_label;
+	}
+
+	slsalb_json = binit();
+	if(!slsalb_json) {
+		fprintf(stderr, "Couldn't allocate slsalb_json\n");
 		err = ENOMEM;
 		goto end_label;
 	}
@@ -521,6 +530,16 @@ process_items_album(int mode, cJSON *items, bstr_t *out)
 		bprintf(out, "%s - %s | %s\n", bget(slsalb->sa_artist),
 		    bget(slsalb->sa_name), bget(slsalb->sa_uri));
 
+		ret = slsalb_tojson(slsalb, slsalb_json);
+		if(ret != 0) {
+			blogf("Couldn't render slsalb to JSON");
+			err = ret;
+			goto end_label;
+		}
+		printf("%s\n", bget(slsalb_json));
+
+		bclear(slsalb_json);
+
 		slsalb_uninit(&slsalb);
 
 		slsalb = slsalb_init(SLSOBJ_TYPE_SPOT);
@@ -535,6 +554,7 @@ process_items_album(int mode, cJSON *items, bstr_t *out)
 end_label:
 	
 	buninit(&artnam_sub);
+	buninit(&slsalb_json);
 
 	slsalb_uninit(&slsalb);
 

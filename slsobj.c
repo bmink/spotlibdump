@@ -1,6 +1,8 @@
 #include <errno.h>
 #include "slsobj.h"
 #include "blog.h"
+#include "cJSON.h"
+#include "cJSON_helper.h"
 
 slsalb_t
 *slsalb_init(const char *type)
@@ -96,4 +98,59 @@ slsalb_uninit(slsalb_t **alb)
 	buninit(&(*alb)->sa_url);
 	buninit(&(*alb)->sa_caurl_lrg);
 	buninit(&(*alb)->sa_caurl_sml);
+}
+
+
+int
+slsalb_tojson(slsalb_t *alb, bstr_t *buf)
+{
+	cJSON	*albj;
+	cJSON	*child;
+	int	err;
+	char	*rendered;
+
+	if(alb == NULL || buf == NULL)
+		return EINVAL;
+
+	err = 0;
+	albj = NULL;
+	rendered = NULL;
+
+	albj = cJSON_CreateObject();
+	if(albj == NULL) {
+		blogf("Couldn't create JSON object");
+		err = ENOMEM;
+		goto end_label;
+	}
+
+	child = cJSON_AddStringToObject(albj, "type", bget(alb->sa_type));
+	if(child == NULL) {
+		err = ENOEXEC;
+		goto end_label;
+	}
+	
+
+	rendered = cJSON_Print(albj);
+	if(xstrempty(rendered)) {
+		blogf("Could not render into string");
+		err = ENOEXEC;
+		goto end_label;
+	}
+
+	bclear(buf);
+	bstrcat(buf, rendered);
+
+end_label:
+
+	if(albj != NULL) {
+		cJSON_Delete(albj);
+		albj = NULL;
+	}
+
+	if(rendered != NULL) {
+		free(rendered);	
+		rendered = NULL;
+	}
+
+	return err;
 }
