@@ -18,7 +18,7 @@ typedef struct slsalb {
 
 } slsalb_t;
 
-slsalb_t *slsalb_init(void);
+slsalb_t *slsalb_init(const char *);
 void slsalb_uninit(slsalb_t **);
 
 

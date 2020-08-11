@@ -3,7 +3,7 @@
 #include "blog.h"
 
 slsalb_t
-*slsalb_init(void)
+*slsalb_init(const char *type)
 {
 	slsalb_t	*alb;
 	int		err;
@@ -25,6 +25,8 @@ slsalb_t
 		err = ENOMEM;
 		goto end_label;
 	}
+	if(!xstrempty(type))
+		bstrcat(alb->sa_type, type);
 
 	alb->sa_artist = binit();
 	if(alb->sa_artist == NULL) {

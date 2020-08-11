@@ -27,6 +27,8 @@ int unset_repeat(void);
 #define MODE_LIBDUMP	0
 #define MODE_UNSETREP	1
 
+#define SLSOBJ_TYPE_SPOT	"spotify"
+
 
 int
 main(int argc, char **argv)
@@ -431,7 +433,7 @@ process_items_album(int mode, cJSON *items, bstr_t *out)
 	if(mode != ALBMODE_SAVED_ALBUMS && mode != ALBMODE_LIKED_TRACKS)
 		return EINVAL;
 
-	slsalb = slsalb_init();
+	slsalb = slsalb_init(SLSOBJ_TYPE_SPOT);
 	if(slsalb == NULL) {
 		fprintf(stderr, "Couldn't allocate slsalb\n");
 		err = ENOMEM;
@@ -510,7 +512,7 @@ process_items_album(int mode, cJSON *items, bstr_t *out)
 			bclear(artnam_sub);
 		}
 
-#if 1
+#if 0
 		printf("art=%s\n", bget(slsalb->sa_artist));
 		printf("alb=%s\n", bget(slsalb->sa_name));
 		printf("uri=%s\n", bget(slsalb->sa_uri));
@@ -521,7 +523,7 @@ process_items_album(int mode, cJSON *items, bstr_t *out)
 
 		slsalb_uninit(&slsalb);
 
-		slsalb = slsalb_init();
+		slsalb = slsalb_init(SLSOBJ_TYPE_SPOT);
 		if(slsalb == NULL) {
 			fprintf(stderr, "Couldn't allocate slsalb\n");
 			err = ENOMEM;
