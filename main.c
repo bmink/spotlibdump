@@ -418,7 +418,11 @@ process_items_album(int mode, cJSON *items, bstr_t *out)
 	cJSON		*track;
 	cJSON		*artists;
 	cJSON		*artist;
+	cJSON		*external_urls;
 	bstr_t		*artnam_sub;
+	cJSON		*images;
+	cJSON		*image;
+	int		width;
 	int		err;
 	int		ret;
 	slsalb_t	*slsalb;
@@ -519,6 +523,29 @@ process_items_album(int mode, cJSON *items, bstr_t *out)
 			bstrcat(slsalb->sa_artist, bget(artnam_sub));
 
 			bclear(artnam_sub);
+		}
+
+		external_urls = cJSON_GetObjectItemCaseSensitive(album,
+		    "external_urls");
+		if(!external_urls) {
+			fprintf(stderr, "Didn't find external_urls\n");
+			err = ENOENT;
+			goto end_label;
+		}
+
+		ret = cjson_get_childstr(external_urls, "spotify",
+		    slsalb->sa_url);
+		if(ret != 0) {
+			fprintf(stderr, "Album didn't contain URL\n");
+			err = ENOENT;
+			goto end_label;
+		}
+
+		images = cJSON_GetObjectItemCaseSensitive(album,
+		    "images");
+		if(images) {
+			for(image = images->child; image; image = image->next) {
+			}
 		}
 
 #if 0

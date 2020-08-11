@@ -14,6 +14,7 @@ typedef struct slsalb {
 	bstr_t	*sa_url;
 	
 	bstr_t	*sa_caurl_lrg;
+	bstr_t	*sa_caurl_med;
 	bstr_t	*sa_caurl_sml;
 
 } slsalb_t;
