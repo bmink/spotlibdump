@@ -1,5 +1,5 @@
 #include <errno.h>
-#include "slsalb.h"
+#include "slsobj.h"
 #include "blog.h"
 
 slsalb_t
@@ -18,6 +18,13 @@ slsalb_t
 		goto end_label;
 	}
 	memset(alb, 0, sizeof(slsalb_t));
+
+	alb->sa_type = binit();
+	if(alb->sa_type == NULL) {
+		blogf("Couldn't allocate type");
+		err = ENOMEM;
+		goto end_label;
+	}
 
 	alb->sa_artist = binit();
 	if(alb->sa_artist == NULL) {
@@ -80,6 +87,7 @@ slsalb_uninit(slsalb_t **alb)
 	if(alb == NULL || *alb == NULL)
 		return;
 
+	buninit(&(*alb)->sa_type);
 	buninit(&(*alb)->sa_artist);
 	buninit(&(*alb)->sa_name);
 	buninit(&(*alb)->sa_uri);
