@@ -423,6 +423,7 @@ process_items_album(int mode, cJSON *items, bstr_t *out)
 	cJSON		*images;
 	cJSON		*image;
 	int		width;
+	bstr_t		*imgurl_targ;
 	int		err;
 	int		ret;
 	slsalb_t	*slsalb;
@@ -545,6 +546,41 @@ process_items_album(int mode, cJSON *items, bstr_t *out)
 		    "images");
 		if(images) {
 			for(image = images->child; image; image = image->next) {
+				ret = cjson_get_childint(image, "width",
+				    &width);
+				if(ret != 0) {
+					fprintf(stderr, "Image didn't contain"
+					    " width\n");
+					err = ENOENT;
+					goto end_label;
+				}
+
+				imgurl_targ = NULL;
+				if(width == 640) {
+					imgurl_targ = slsalb->sa_caurl_lrg;
+				} else
+				if(width == 300) {
+					imgurl_targ = slsalb->sa_caurl_med;
+				} else
+
+				if(width == 64) {
+					imgurl_targ = slsalb->sa_caurl_sml;
+				}
+
+				if(imgurl_targ == NULL) {
+					/* Unknown size */
+					continue;
+				}
+
+				ret = cjson_get_childstr(image, "url",
+				    imgurl_targ);
+				if(ret != 0) {
+					fprintf(stderr, "Image didn't contain"
+					    " URL\n");
+					err = ENOENT;
+					goto end_label;
+				}
+
 			}
 		}
 
