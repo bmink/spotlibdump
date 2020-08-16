@@ -639,7 +639,9 @@ process_items_album(int mode, cJSON *items, bstr_t *out, bstr_t *rediskey)
 			err = ret;
 			goto end_label;
 		}
+#if 0
 		printf("%s\n", bget(slsalb_json));
+#endif
 
 		nadded = 0;
 		ret = hiredis_sadd(bget(rediskey), slsalb_json, &nadded);
