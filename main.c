@@ -29,6 +29,10 @@ int unset_repeat(void);
 
 #define SLSOBJ_TYPE_SPOT	"spotify"
 
+#define REDIS_KEY_ACCESSTOK	"spotlibdump:access_token"
+#define REDIS_KEY_S_ALBUMS_ALL	"spotlibdump:saved_albums:all"
+#define REDIS_KEY_LT_ALBUMS_ALL	"spotlibdump:liked_track_albums:all"
+
 
 int
 main(int argc, char **argv)
@@ -210,7 +214,6 @@ usage(char *execn)
 }
 
 
-#define REDIS_KEY_ACCESSTOK	"spotlibdump:access_token"
 
 int
 load_access_tok(void)
@@ -260,7 +263,7 @@ end_label:
 #define FILEN_ALBUMS	"spotlib_saved_albums.txt"
 #define FILEN_LT_ALBUMS	"spotlib_liked_track_albums.txt"
 
-int process_items_album(int, cJSON *, bstr_t *);
+int process_items_album(int, cJSON *, bstr_t *, bstr_t *);
 
 
 int
@@ -275,6 +278,8 @@ dump_albums(int mode)
 	bstr_t		*out;
 	bstr_t		*filen;
 	bstr_t		*filen_tmp;
+	bstr_t		*rediskey;
+	bstr_t		*rediskey_tmp;
 
 	err = 0;
 	resp = 0;
@@ -283,6 +288,8 @@ dump_albums(int mode)
 	out = NULL;
 	filen = NULL;
 	filen_tmp = NULL;
+	rediskey = NULL;
+	rediskey_tmp = NULL;
 
 	if(mode != ALBMODE_SAVED_ALBUMS && mode != ALBMODE_LIKED_TRACKS)
 		return EINVAL;
@@ -294,11 +301,12 @@ dump_albums(int mode)
 		goto end_label;
 	}
 
-	if(mode == ALBMODE_SAVED_ALBUMS)
+	if(mode == ALBMODE_SAVED_ALBUMS) {
 		bprintf(url, URL_ALBUMS);
-	else
-	if(mode == ALBMODE_LIKED_TRACKS)
+	} else
+	if(mode == ALBMODE_LIKED_TRACKS) {
 		bprintf(url, URL_TRACKS);
+	}
 
 	out = binit();
 	if(!out) {
@@ -327,6 +335,27 @@ dump_albums(int mode)
 	}
 	bprintf(filen_tmp, "%s.%d", bget(filen), getpid());
 
+	rediskey = binit();
+	if(!rediskey) {
+		fprintf(stderr, "Couldn't allocate rediskey\n");
+		err = ENOMEM;
+		goto end_label;
+	}
+	if(mode == ALBMODE_SAVED_ALBUMS)
+		bprintf(rediskey, "%s", REDIS_KEY_S_ALBUMS_ALL);
+	else
+	if(mode == ALBMODE_LIKED_TRACKS)
+		bprintf(rediskey, "%s", REDIS_KEY_LT_ALBUMS_ALL);
+
+	rediskey_tmp = binit();
+	if(!rediskey_tmp) {
+		fprintf(stderr, "Couldn't allocate rediskey_tmp\n");
+		err = ENOMEM;
+		goto end_label;
+	}
+	bprintf(rediskey_tmp, "%s:tmp:%d", bget(rediskey), getpid());
+
+
 	while(1) {
 
 		ret = bcurl_get(bget(url), &resp);
@@ -354,7 +383,7 @@ dump_albums(int mode)
 			goto end_label;
 		}
 
-		ret = process_items_album(mode, items, out);
+		ret = process_items_album(mode, items, out, rediskey_tmp);
 		if(ret != 0) {
 			fprintf(stderr, "Couldn't process items\n");
 			err = ret;
@@ -394,6 +423,8 @@ end_label:
 	buninit(&url);
 	buninit(&out);
 	buninit(&filen);
+	buninit(&rediskey);
+	buninit(&rediskey_tmp);
 
 	if(!bstrempty(filen_tmp)) {
 		unlink(bget(filen_tmp));
@@ -411,7 +442,7 @@ end_label:
 
 
 int
-process_items_album(int mode, cJSON *items, bstr_t *out)
+process_items_album(int mode, cJSON *items, bstr_t *out, bstr_t *rediskey)
 {
 	cJSON		*item;
 	cJSON		*album;
@@ -434,7 +465,7 @@ process_items_album(int mode, cJSON *items, bstr_t *out)
 	artnam_sub = NULL;
 	slsalb_json = NULL;
 
-	if(items == NULL)
+	if(items == NULL || out == NULL || bstrempty(rediskey))
 		return EINVAL;
 
 	if(mode != ALBMODE_SAVED_ALBUMS && mode != ALBMODE_LIKED_TRACKS)
