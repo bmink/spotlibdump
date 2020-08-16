@@ -25,4 +25,6 @@ int hiredis_lpush(const char *, const char *);
 int hiredis_lrange(const char *, int, int, barr_t *);
 int hiredis_lrem(const char *, int, const char *, int *);
 
+int hiredis_rename(const char *, const char *);
+
 #endif

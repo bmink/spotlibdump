@@ -937,3 +937,82 @@ end_label:
 	return err;
 	
 }
+
+
+int
+hiredis_rename(const char *oldkey, const char *newkey)
+{
+	redisReply	*r;
+	int		err;
+	bstr_t		*cmd;
+
+	if(rctx == NULL)
+		return ENOEXEC;
+
+	if(xstrempty(oldkey) || xstrempty(newkey))
+		return EINVAL;
+
+	r = NULL;
+	err = 0;
+
+	cmd = binit();
+	if(cmd == NULL) {
+		err = ENOMEM;
+		blogf("Couldn't initialize cmd");
+		goto end_label;
+	}
+
+	bprintf(cmd, "RENAME %s %s", oldkey, newkey);
+
+	r = _redisCommand(bget(cmd));
+
+	if(r == NULL) {
+		blogf("Error while sending command to redis: NULL reply");
+		err = ENOEXEC;
+		goto end_label;
+	} else
+	if(r->type == REDIS_REPLY_ERROR) {
+		if(!xstrempty(r->str)) {
+			blogf("Error while sending command to redis: %s",
+			    r->str);
+		} else {
+			blogf("Error while sending command to redis,"
+			    " and no error string returned by redis!");
+		}
+
+		err = ENOEXEC;
+		goto end_label;
+
+	} else
+	if(r->type == REDIS_REPLY_STATUS) {
+		if(!xstrempty(r->str)) {
+			if(!xstrbeginswith(r->str, "OK")) {
+				blogf("Redis error on SET: %s", r->str);
+				err = ENOEXEC;
+				goto end_label;
+			}
+		} else {
+			blogf("Error while sending SET to redis, and no"
+			    " error string returned by redis!");
+		}
+
+	} else {
+		blogf("Redis didn't respond with STATUS");
+		err = ENOEXEC;
+		goto end_label;
+	}
+
+end_label:
+
+	if(cmd != NULL) {
+		buninit(&cmd);
+	}
+
+	if(r != NULL) {
+		freeReplyObject(r);
+		r = NULL;
+	}
+
+	return err;
+}
+

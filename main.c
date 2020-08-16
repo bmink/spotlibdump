@@ -417,6 +417,14 @@ dump_albums(int mode)
 		goto end_label;
 	}
 
+	ret = hiredis_rename(bget(rediskey_tmp), bget(rediskey));
+	if(ret != 0) {
+		fprintf(stderr, "Couldn't rename redis key '%s' to '%s'\n",
+		    bget(rediskey_tmp), bget(rediskey));
+		err = ret;
+		goto end_label;
+	}
+
 end_label:
 
 	buninit(&resp);
@@ -459,6 +467,7 @@ process_items_album(int mode, cJSON *items, bstr_t *out, bstr_t *rediskey)
 	int		ret;
 	slsalb_t	*slsalb;
 	bstr_t		*slsalb_json;
+	int		nadded;
 
 	err = 0;
 	slsalb = NULL;
@@ -631,6 +640,12 @@ process_items_album(int mode, cJSON *items, bstr_t *out, bstr_t *rediskey)
 			goto end_label;
 		}
 		printf("%s\n", bget(slsalb_json));
+
+		nadded = 0;
+		ret = hiredis_sadd(bget(rediskey), slsalb_json, &nadded);
+		if(ret != 0 || nadded != 1) {
+			blogf("Couldn't add album to redis!");
+		}
 
 		bclear(slsalb_json);
 
